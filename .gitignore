@@ -1,0 +1,9 @@
+*.zip
+.env
+.env.*
+.DS_Store
+Thumbs.db
+.cursor/
+node_modules/
+_integrate_docs.py
+_patch_renov.py
