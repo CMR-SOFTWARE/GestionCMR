@@ -139,6 +139,15 @@ textarea.ta-desc:focus{border-color:var(--teal2);box-shadow:0 0 0 3px rgba(10,15
 .info-check-row{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:13px}
 .info-check-row input{width:auto;height:auto}
 .info-acciones{display:flex;flex-wrap:wrap;gap:6px}
+.aviso-ok{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;color:#0a7a55}
+.aviso-ok::before{content:'✓';display:inline-flex;width:18px;height:18px;border-radius:50%;background:rgba(10,157,110,.15);align-items:center;justify-content:center;font-size:11px}
+.aviso-pend{font-size:12px;color:var(--text3)}
+.aviso-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:1.25rem}
+@media(max-width:680px){.aviso-stats{grid-template-columns:1fr}}
+.aviso-stat{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1rem 1.1rem}
+.aviso-stat-label{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text3);margin-bottom:4px}
+.aviso-stat-val{font-size:22px;font-weight:700}
+tr.aviso-row-ok td{background:rgba(10,157,110,.04)}
 .info-equipo-block{margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)}
 .info-equipo-block:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
 .info-equipo-name{font-weight:700;font-size:13px;margin-bottom:8px}
@@ -268,7 +277,8 @@ tbody tr:hover td{background:var(--surface2)}
       <button class="nav-tab" type="button" onclick="showPage('estadisticas',this)">Estadísticas</button>
       <button class="nav-tab" type="button" onclick="showPage('tareas',this)">Tareas</button>
       <button class="nav-tab" type="button" onclick="showPage('documentos',this)">Documentos</button>
-      <button class="nav-tab" type="button" onclick="showPage('informacion',this)"><span>Información</span><span class="nav-badge" id="info-badge-pendientes"></span></button>
+      <button class="nav-tab" type="button" onclick="showPage('avisos',this)"><span>Avisos</span><span class="nav-badge" id="aviso-badge-pendientes"></span></button>
+      <button class="nav-tab" type="button" onclick="showPage('informacion',this)">Información</button>
     </nav>
   </div>
 
@@ -282,7 +292,7 @@ tbody tr:hover td{background:var(--surface2)}
   <div id="banner-recordatorios" class="app-alert app-alert-info">
     <div class="app-alert-inner">
       <span id="banner-recordatorios-text">Hay recordatorios pendientes.</span>
-      <a onclick="showPage('informacion',document.querySelector('.nav-tab[onclick*=informacion]'))">Ver recordatorios →</a>
+      <a onclick="showPage('avisos',document.querySelector('.nav-tab[onclick*=avisos]'))">Ver avisos →</a>
     </div>
   </div>
 
@@ -587,21 +597,31 @@ tbody tr:hover td{background:var(--surface2)}
       <label class="info-check-row"><input type="checkbox" id="info-notif-vencer" checked> Email cuando la tarea está por vencer</label>
       <label class="info-check-row"><input type="checkbox" id="info-notif-wsp-vencer" checked> WhatsApp cuando la tarea está por vencer</label>
     </div>
-    <div class="panel">
-      <div class="panel-title" style="margin-bottom:8px">Recordatorios pendientes hoy</div>
-      <p class="info-hint">WhatsApp abre wa.me (mensaje desde tu celular hacia el personal de cada uno). Email abre tu correo. Cada aviso se marca por día al usar el botón.</p>
-      <div class="section-tag" style="margin-top:8px">Clientes — WhatsApp (desde línea CMR)</div>
-      <div id="info-lista-clientes"><p class="info-empty">Cargando…</p></div>
-      <div class="section-tag" style="margin-top:16px">Tareas — por vencer (email + WhatsApp personal)</div>
-      <div id="info-lista-tareas"><p class="info-empty">Cargando…</p></div>
-      <div style="margin-top:12px"><button type="button" class="btn-ghost-edit" onclick="renderPanelRecordatorios()">Actualizar listas</button></div>
-    </div>
     <div style="margin:1rem 0 1.5rem;display:flex;justify-content:flex-end">
       <button class="btn-success" id="btn-guardar-info" onclick="guardarInformacion()">Guardar configuración</button>
     </div>
     <div class="panel" style="background:var(--surface2)">
       <div class="section-tag">Envío 100% automático (opcional)</div>
       <p class="info-hint">Para WhatsApp y emails sin abrir manualmente, conectá un cron (n8n, Make o Supabase Edge Functions) usando las tablas <code>configuracion</code>, <code>clientes</code>, <code>tareas</code> y <code>recordatorios_log</code>. Ejecutá <code>supabase/informacion.sql</code> si aún no lo hiciste.</p>
+    </div>
+  </div>
+  </div>
+
+  <div id="page-avisos" class="page">
+  <div class="container">
+    <div class="aviso-stats">
+      <div class="aviso-stat"><div class="aviso-stat-label">Clientes por avisar</div><div class="aviso-stat-val val-amber" id="aviso-stat-clientes">0</div></div>
+      <div class="aviso-stat"><div class="aviso-stat-label">Enviados hoy (clientes)</div><div class="aviso-stat-val val-green" id="aviso-stat-ok">0</div></div>
+      <div class="aviso-stat"><div class="aviso-stat-label">Tareas pendientes</div><div class="aviso-stat-val val-neutral" id="aviso-stat-tareas">0</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">Avisos de hoy</div>
+      <p class="info-hint">Clientes con vencimiento próximo y tareas por vencer. Al usar <strong>WhatsApp</strong> o <strong>Email</strong> se marca ✓ enviado por el día. La configuración de plantillas está en <a onclick="showPage('informacion',document.querySelector('.nav-tab[onclick*=informacion]'))" style="color:var(--teal);font-weight:600;cursor:pointer">Información</a>.</p>
+      <div class="section-tag" style="margin-top:12px">Clientes — WhatsApp CMR</div>
+      <div id="aviso-lista-clientes"><p class="info-empty">Cargando…</p></div>
+      <div class="section-tag" style="margin-top:16px">Tareas — por vencer</div>
+      <div id="aviso-lista-tareas"><p class="info-empty">Cargando…</p></div>
+      <div style="margin-top:12px"><button type="button" class="btn-ghost-edit" onclick="cargarAvisos()">Actualizar</button></div>
     </div>
   </div>
   </div>
@@ -1035,6 +1055,7 @@ function showPage(id, tab){
   if(id === 'tareas' && supabaseConectado) cargarTareas();
   if(id === 'documentos' && supabaseConectado) { poblarFiltroEstadoDoc(); cargarDocumentos(); }
   if(id === 'informacion' && supabaseConectado) cargarInformacion();
+  if(id === 'avisos' && supabaseConectado) cargarAvisos();
 }
 
 // ─── clientes ────────────────────────────

@@ -228,11 +228,12 @@ function abrirWhatsAppNumero(tel, mensaje){
   window.open('https://wa.me/' + tel + '?text=' + encodeURIComponent(mensaje), '_blank');
 }
 
-function abrirWhatsAppCliente(cliente){
+async function abrirWhatsAppCliente(cliente){
   const tel = telefonoWhatsApp(cliente.contacto);
   if(!tel){ toast('El cliente no tiene teléfono válido en Contacto'); return; }
   abrirWhatsAppNumero(tel, mensajeWspCliente(cliente));
-  marcarRecordatorioEnviado('wsp_cliente', cliente.id);
+  await marcarRecordatorioEnviado('wsp_cliente', cliente.id);
+  await renderPanelAvisos();
 }
 
 function abrirWhatsAppTareaParaPersona(tarea, tipo, nombre){
@@ -327,7 +328,17 @@ function tareaTienePendienteVencer(t){
   return pendiente;
 }
 
-async function obtenerClientesParaRecordatorio(){
+function clienteEnVentanaAviso(cl, dias){
+  if(!cl.activo || !cl.fecha_vencimiento) return false;
+  const d = diasHasta(cl.fecha_vencimiento);
+  return d !== null && d >= 0 && d <= dias;
+}
+
+function clienteWspEnviadoHoy(id){
+  return logsRecordatoriosHoy.has(logKey('wsp_cliente', id));
+}
+
+async function obtenerClientesEnVentanaAviso(){
   const c = configCMR || DEFAULT_CONFIG;
   const dias = c.dias_aviso_cliente ?? 5;
   let lista = (typeof clientesCompletos !== 'undefined' && clientesCompletos.length)
@@ -337,12 +348,19 @@ async function obtenerClientesParaRecordatorio(){
     const { data } = await sb.from('clientes').select('*').eq('activo', true);
     lista = data || [];
   }
-  return lista.filter(cl => {
-    if(!cl.activo || !cl.fecha_vencimiento) return false;
-    const d = diasHasta(cl.fecha_vencimiento);
-    if(d === null || d < 0 || d > dias) return false;
-    return !logsRecordatoriosHoy.has(logKey('wsp_cliente', cl.id));
-  });
+  return lista
+    .filter(cl => clienteEnVentanaAviso(cl, dias))
+    .sort((a, b) => {
+      const ea = clienteWspEnviadoHoy(a.id) ? 1 : 0;
+      const eb = clienteWspEnviadoHoy(b.id) ? 1 : 0;
+      if(ea !== eb) return ea - eb;
+      return (a.fecha_vencimiento || '').localeCompare(b.fecha_vencimiento || '');
+    });
+}
+
+async function contarClientesPendientesAviso(){
+  const lista = await obtenerClientesEnVentanaAviso();
+  return lista.filter(cl => !clienteWspEnviadoHoy(cl.id)).length;
 }
 
 async function obtenerTareasParaRecordatorio(){
@@ -362,66 +380,104 @@ async function obtenerTareasParaRecordatorio(){
   });
 }
 
-async function renderPanelRecordatorios(){
-  const wrapC = document.getElementById('info-lista-clientes');
-  const wrapT = document.getElementById('info-lista-tareas');
-  if(!wrapC || !wrapT) return;
+function estadoAvisoTarea(t){
+  const c = configCMR || DEFAULT_CONFIG;
+  const partes = [];
+  if(c.notif_tarea_por_vencer && logsRecordatoriosHoy.has(logKey('email_tarea_vence', t.id))) partes.push('Email');
+  const eq = equipoDeTarea(t);
+  if(c.notif_tarea_wsp_vencer !== false && eq.length){
+    const wspListo = eq.every(n => logsRecordatoriosHoy.has(logKey('wsp_tarea_vence', logRefTareaPersona(t.id, n))));
+    if(wspListo) partes.push('WSP');
+  }
+  if(!partes.length) return { html: '<span class="aviso-pend">Pendiente</span>', completo: false };
+  return { html: `<span class="aviso-ok">${partes.join(' · ')}</span>`, completo: true };
+}
+
+async function renderPanelAvisos(){
+  const wrapC = document.getElementById('aviso-lista-clientes');
+  const wrapT = document.getElementById('aviso-lista-tareas');
+  if(!wrapC && !wrapT) return;
   await cargarLogsRecordatoriosHoy();
-  const clientes = await obtenerClientesParaRecordatorio();
+  const clientes = await obtenerClientesEnVentanaAviso();
   const tareas = await obtenerTareasParaRecordatorio();
   const escFn = typeof esc === 'function' ? esc : s => s;
+  const clientesOk = clientes.filter(cl => clienteWspEnviadoHoy(cl.id)).length;
+  const clientesPend = clientes.length - clientesOk;
 
-  if(!clientes.length){
-    wrapC.innerHTML = '<p class="info-empty">No hay clientes con vencimiento próximo pendientes de aviso.</p>';
-  } else {
-    wrapC.innerHTML = '<table class="info-table"><thead><tr><th>Cliente</th><th>Vence</th><th>Contacto</th><th></th></tr></thead><tbody>' +
-      clientes.map(cl => {
-        const d = diasHasta(cl.fecha_vencimiento);
-        const telOk = !!telefonoWhatsApp(cl.contacto);
-        return `<tr>
-          <td><strong>${escFn(cl.nombre)}</strong><div class="info-sub">${escFn(cl.plan)}</div></td>
-          <td>${cl.fecha_vencimiento}<div class="info-sub">${d === 0 ? 'Hoy' : 'En ' + d + ' días'}</div></td>
-          <td style="font-size:12px">${escFn(cl.contacto || '—')}</td>
-          <td><button type="button" class="btn-wsp" ${telOk ? '' : 'disabled title="Sin teléfono en Contacto"'} onclick="abrirWhatsAppClientePorId('${cl.id}')">WhatsApp</button></td>
-        </tr>`;
-      }).join('') + '</tbody></table>';
+  const elStatC = document.getElementById('aviso-stat-clientes');
+  const elStatOk = document.getElementById('aviso-stat-ok');
+  const elStatT = document.getElementById('aviso-stat-tareas');
+  if(elStatC) elStatC.textContent = clientesPend;
+  if(elStatOk) elStatOk.textContent = clientesOk;
+  if(elStatT) elStatT.textContent = tareas.length;
+
+  if(wrapC){
+    if(!clientes.length){
+      wrapC.innerHTML = '<p class="info-empty">No hay clientes con vencimiento en los próximos días configurados.</p>';
+    } else {
+      wrapC.innerHTML = '<table class="info-table"><thead><tr><th>Estado</th><th>Cliente</th><th>Vence</th><th>Contacto</th><th></th></tr></thead><tbody>' +
+        clientes.map(cl => {
+          const d = diasHasta(cl.fecha_vencimiento);
+          const enviado = clienteWspEnviadoHoy(cl.id);
+          const telOk = !!telefonoWhatsApp(cl.contacto);
+          const estado = enviado
+            ? '<span class="aviso-ok">Enviado</span>'
+            : '<span class="aviso-pend">Pendiente</span>';
+          const btnLabel = enviado ? 'Reenviar' : 'WhatsApp';
+          return `<tr class="${enviado ? 'aviso-row-ok' : ''}">
+            <td>${estado}</td>
+            <td><strong>${escFn(cl.nombre)}</strong><div class="info-sub">${escFn(cl.plan)}</div></td>
+            <td>${cl.fecha_vencimiento}<div class="info-sub">${d === 0 ? 'Hoy' : 'En ' + d + ' días'}</div></td>
+            <td style="font-size:12px">${escFn(cl.contacto || '—')}</td>
+            <td><button type="button" class="btn-wsp" ${telOk ? '' : 'disabled title="Sin teléfono en Contacto"'} onclick="abrirWhatsAppClientePorId('${cl.id}')">${btnLabel}</button></td>
+          </tr>`;
+        }).join('') + '</tbody></table>';
+    }
   }
 
-  if(!tareas.length){
-    wrapT.innerHTML = '<p class="info-empty">No hay tareas por vencer pendientes de aviso.</p>';
-  } else {
-    wrapT.innerHTML = '<table class="info-table"><thead><tr><th>Tarea</th><th>Vence</th><th>Equipo</th><th>Acciones</th></tr></thead><tbody>' +
-      tareas.map(t => {
-        const d = diasHasta(t.fecha_vencimiento);
-        const eq = equipoDeTarea(t).join(', ');
-        return `<tr>
-          <td><strong>${escFn(t.titulo)}</strong></td>
-          <td>${t.fecha_vencimiento}<div class="info-sub">${d === 0 ? 'Hoy' : 'En ' + d + ' días'}</div></td>
-          <td style="font-size:12px">${escFn(eq)}</td>
-          <td><div class="info-acciones">
-            <button type="button" class="btn-email-info" onclick="abrirEmailTareaPorId('${t.id}','vence')">Email</button>
-            <button type="button" class="btn-wsp" onclick="abrirWhatsAppTareaPorId('${t.id}','vence')">WhatsApp</button>
-          </div></td>
-        </tr>`;
-      }).join('') + '</tbody></table>';
+  if(wrapT){
+    if(!tareas.length){
+      wrapT.innerHTML = '<p class="info-empty">No hay tareas por vencer pendientes de aviso.</p>';
+    } else {
+      wrapT.innerHTML = '<table class="info-table"><thead><tr><th>Estado</th><th>Tarea</th><th>Vence</th><th>Equipo</th><th>Acciones</th></tr></thead><tbody>' +
+        tareas.map(t => {
+          const d = diasHasta(t.fecha_vencimiento);
+          const eq = equipoDeTarea(t).join(', ');
+          const est = estadoAvisoTarea(t);
+          return `<tr class="${est.completo ? 'aviso-row-ok' : ''}">
+            <td>${est.html}</td>
+            <td><strong>${escFn(t.titulo)}</strong></td>
+            <td>${t.fecha_vencimiento}<div class="info-sub">${d === 0 ? 'Hoy' : 'En ' + d + ' días'}</div></td>
+            <td style="font-size:12px">${escFn(eq)}</td>
+            <td><div class="info-acciones">
+              <button type="button" class="btn-email-info" onclick="abrirEmailTareaPorId('${t.id}','vence')">Email</button>
+              <button type="button" class="btn-wsp" onclick="abrirWhatsAppTareaPorId('${t.id}','vence')">WhatsApp</button>
+            </div></td>
+          </tr>`;
+        }).join('') + '</tbody></table>';
+    }
   }
 
-  const badge = document.getElementById('info-badge-pendientes');
-  const total = clientes.length + tareas.length;
+  const pendientes = clientesPend + tareas.length;
+  const badge = document.getElementById('aviso-badge-pendientes');
   if(badge){
-    badge.textContent = total;
-    badge.classList.toggle('show', total > 0);
+    badge.textContent = pendientes;
+    badge.classList.toggle('show', pendientes > 0);
   }
   const banner = document.getElementById('banner-recordatorios');
   if(banner){
-    if(total){
+    if(pendientes){
       banner.classList.add('show');
       const txt = document.getElementById('banner-recordatorios-text');
-      if(txt) txt.textContent = `${total} recordatorio${total > 1 ? 's' : ''} pendiente${total > 1 ? 's' : ''} (clientes / tareas)`;
+      if(txt) txt.textContent = `${pendientes} aviso${pendientes > 1 ? 's' : ''} pendiente${pendientes > 1 ? 's' : ''} — ver sección Avisos`;
     } else {
       banner.classList.remove('show');
     }
   }
+}
+
+async function renderPanelRecordatorios(){
+  await renderPanelAvisos();
 }
 
 window.abrirWhatsAppClientePorId = async function(id){
@@ -431,7 +487,7 @@ window.abrirWhatsAppClientePorId = async function(id){
     const { data } = await sb.from('clientes').select('*').eq('id', id).single();
     cl = data;
   }
-  if(cl) abrirWhatsAppCliente(cl);
+  if(cl) await abrirWhatsAppCliente(cl);
 };
 
 window.abrirEmailTareaPorId = async function(id, tipo){
@@ -440,7 +496,10 @@ window.abrirEmailTareaPorId = async function(id, tipo){
     const { data } = await sb.from('tareas').select('*').eq('id', id).single();
     t = data;
   }
-  if(t) abrirEmailTarea(t, tipo || 'vence');
+  if(t){
+    abrirEmailTarea(t, tipo || 'vence');
+    setTimeout(() => renderPanelAvisos(), 400);
+  }
 };
 
 window.abrirWhatsAppTareaPorId = async function(id, tipo){
@@ -449,14 +508,22 @@ window.abrirWhatsAppTareaPorId = async function(id, tipo){
     const { data } = await sb.from('tareas').select('*').eq('id', id).single();
     t = data;
   }
-  if(t) abrirWhatsAppEquipoTarea(t, tipo || 'vence', true);
+  if(t){
+    abrirWhatsAppEquipoTarea(t, tipo || 'vence', true);
+    setTimeout(() => renderPanelAvisos(), 1200);
+  }
 };
 
 async function cargarInformacion(){
   if(!requiereSupabase()) return;
   await cargarConfiguracion();
   poblarFormularioInformacion();
-  await renderPanelRecordatorios();
+}
+
+async function cargarAvisos(){
+  if(!requiereSupabase()) return;
+  await cargarConfiguracion();
+  await renderPanelAvisos();
 }
 
 async function notificarTareaCreada(tarea){
