@@ -40,6 +40,7 @@ Si falla, verás **Error de conexión** en rojo: revisá URL, key y que hayas ej
 Si ya tenías la base creada antes, ejecutá también en el SQL Editor:
 - `supabase/clientes.sql` — tabla de clientes
 - `supabase/tareas.sql` — lista de tareas
+- `supabase/informacion.sql` — configuración CMR, emails del equipo y log de recordatorios
 
 ## Usuarios de prueba
 

@@ -66,6 +66,7 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(-
 .page{display:none}.page.active{display:block}
 .stat-grid-4{grid-template-columns:repeat(4,1fr)}
 .form-2{grid-template-columns:1fr 1fr}
+.form-3{grid-template-columns:1fr 1fr 1fr}
 .form-5{grid-template-columns:1.2fr 1fr .8fr 1fr 1fr}
 .val-amber{color:#c47a0a}
 input[type=date]{width:100%;height:38px;border:1.5px solid var(--border);border-radius:9px;background:var(--surface2);color:var(--text);padding:0 12px;font-size:13px;font-family:inherit}
@@ -117,6 +118,28 @@ textarea.ta-desc:focus{border-color:var(--teal2);box-shadow:0 0 0 3px rgba(10,15
 .banner-renov-inner{max-width:1040px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:13px}
 .banner-renov a{color:var(--teal);font-weight:700;cursor:pointer;text-decoration:none}
 .banner-renov a:hover{text-decoration:underline}
+.banner-recordatorios{display:none;background:linear-gradient(135deg,rgba(10,157,143,.1),rgba(26,111,196,.06));border-bottom:1px solid rgba(10,157,143,.25);padding:.65rem 1.5rem}
+.banner-recordatorios.show{display:block}
+.info-hint{font-size:12px;color:var(--text3);line-height:1.5;margin-bottom:12px}
+.info-vars{font-size:11px;color:var(--text3);margin-top:6px}
+.info-table{width:100%;border-collapse:collapse;font-size:13px}
+.info-table th,.info-table td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--border)}
+.info-table th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text3);font-weight:600}
+.info-sub{font-size:11px;color:var(--text3);margin-top:2px}
+.info-empty{font-size:13px;color:var(--text3);padding:8px 0}
+.btn-wsp{background:#25d366;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit}
+.btn-wsp:hover{background:#1fb855}
+.btn-wsp:disabled{opacity:.45;cursor:not-allowed}
+.btn-email-info{background:var(--blue);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit}
+.btn-email-info:hover{filter:brightness(1.08)}
+.info-badge{display:none;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#e53e3e;color:#fff;font-size:10px;font-weight:700;margin-left:4px}
+.info-check-row{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:13px}
+.info-check-row input{width:auto;height:auto}
+.info-acciones{display:flex;flex-wrap:wrap;gap:6px}
+.info-equipo-block{margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)}
+.info-equipo-block:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
+.info-equipo-name{font-weight:700;font-size:13px;margin-bottom:8px}
+textarea.info-msg{min-height:100px;resize:vertical}
 .panel-renov{background:linear-gradient(135deg,rgba(196,122,10,.06),rgba(10,157,143,.04));border:1px solid rgba(196,122,10,.22)}
 .panel-renov-title{font-size:13px;font-weight:700;margin-bottom:.75rem;display:flex;align-items:center;gap:8px}
 .renew-card{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:1rem 1.1rem;background:var(--surface);border-radius:12px;border:1px solid var(--border);margin-bottom:8px;border-left:4px solid #c47a0a;box-shadow:var(--shadow)}
@@ -188,7 +211,7 @@ tbody tr:hover td{background:var(--surface2)}
 .btn-doc-add{margin-top:8px;font-size:12px;height:34px;padding:0 12px;border-color:rgba(10,157,143,.3);color:var(--teal);background:rgba(10,157,143,.06)}
 .btn-doc-add:hover{background:rgba(10,157,143,.12)}
 @media(max-width:680px){
-  .form-grid,.form-5,.form-6,.form-tarea{grid-template-columns:1fr}
+  .form-grid,.form-3,.form-5,.form-6,.form-tarea{grid-template-columns:1fr}
   .stat-grid,.stat-grid-4{grid-template-columns:1fr 1fr}
   .hide-mob{display:none}
   .doc-dyn-row{grid-template-columns:1fr}
@@ -229,6 +252,7 @@ tbody tr:hover td{background:var(--surface2)}
       <button class="nav-tab" type="button" onclick="showPage('estadisticas',this)">Estadísticas</button>
       <button class="nav-tab" type="button" onclick="showPage('tareas',this)">Tareas</button>
       <button class="nav-tab" type="button" onclick="showPage('documentos',this)">Documentos</button>
+      <button class="nav-tab" type="button" onclick="showPage('informacion',this)">Información<span class="info-badge" id="info-badge-pendientes">0</span></button>
     </div>
     <div class="header-right">
       <div class="sync-indicator hide-mob" id="sync-indicator">
@@ -248,6 +272,13 @@ tbody tr:hover td{background:var(--surface2)}
     <div class="banner-renov-inner">
       <span id="banner-renov-text">Hay clientes con renovación pendiente de confirmar.</span>
       <a onclick="showPage('clientes',document.querySelector('.nav-tab[onclick*=clientes]'))">Ver renovaciones →</a>
+    </div>
+  </div>
+
+  <div id="banner-recordatorios" class="banner-recordatorios">
+    <div class="banner-renov-inner">
+      <span id="banner-recordatorios-text">Hay recordatorios pendientes.</span>
+      <a onclick="showPage('informacion',document.querySelector('.nav-tab[onclick*=informacion]'))">Ver en Información →</a>
     </div>
   </div>
 
@@ -504,6 +535,73 @@ tbody tr:hover td{background:var(--surface2)}
   </div>
   </div>
 
+  <div id="page-informacion" class="page">
+  <div class="container">
+    <div class="panel">
+      <div class="section-tag">Datos de CMR — WhatsApp a clientes</div>
+      <p class="info-hint">Configurá el mensaje para avisar vencimientos de planes. En cada cliente, el campo <strong>Contacto</strong> debe tener el teléfono (ej. 3364123456 o +54 336 4123456).</p>
+      <div class="form-grid form-2" style="margin-bottom:10px">
+        <div class="field"><label>Nombre de la empresa</label><input id="info-empresa" type="text" placeholder="CMR Software Solutions"></div>
+        <div class="field"><label>WhatsApp CMR (línea empresa)</label><input id="info-tel-empresa" type="text" placeholder="3364 57-8599" value="3364 57-8599"></div>
+      </div>
+      <div class="field" style="margin-bottom:10px"><label>Días antes del vencimiento para avisar al cliente</label>
+        <input id="info-dias-cliente" type="number" min="0" max="60" value="5" style="max-width:120px">
+      </div>
+      <div class="field"><label>Plantilla mensaje WhatsApp</label>
+        <textarea id="info-msg-wsp" class="info-msg ta-desc" rows="4"></textarea>
+        <div class="info-vars">Variables: {{nombre}}, {{plan}}, {{fecha}}, {{monto}}, {{empresa}}, {{dias}}, {{telefono_cmr}}</div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="section-tag">Equipo — Email y WhatsApp personal (tareas)</div>
+      <p class="info-hint">Cada uno recibe WhatsApp en su celular personal (asignado + colaboradores de la tarea). Completá email y/o WhatsApp de cada integrante.</p>
+      <div class="info-equipo-block">
+        <div class="info-equipo-name">Tomi</div>
+        <div class="form-grid form-2"><div class="field"><label>Email</label><input id="info-email-tomi" type="email" placeholder="tomi@…"></div><div class="field"><label>WhatsApp personal</label><input id="info-wsp-tomi" type="text" placeholder="3364…"></div></div>
+      </div>
+      <div class="info-equipo-block">
+        <div class="info-equipo-name">Chipi</div>
+        <div class="form-grid form-2"><div class="field"><label>Email</label><input id="info-email-chipi" type="email" placeholder="chipi@…"></div><div class="field"><label>WhatsApp personal</label><input id="info-wsp-chipi" type="text" placeholder="3364…"></div></div>
+      </div>
+      <div class="info-equipo-block">
+        <div class="info-equipo-name">Gena</div>
+        <div class="form-grid form-2"><div class="field"><label>Email</label><input id="info-email-gena" type="email" placeholder="gena@…"></div><div class="field"><label>WhatsApp personal</label><input id="info-wsp-gena" type="text" placeholder="3364…"></div></div>
+      </div>
+      <div class="field" style="margin-bottom:10px"><label>Días antes del vencimiento de la tarea para avisar</label>
+        <input id="info-dias-tarea" type="number" min="0" max="30" value="2" style="max-width:120px">
+      </div>
+      <div class="field" style="margin-bottom:10px"><label>Plantilla WhatsApp — tarea nueva</label>
+        <textarea id="info-msg-wsp-tarea-nueva" class="info-msg ta-desc" rows="2"></textarea>
+        <div class="info-vars">{{destinatario}}, {{titulo}}, {{asignado}}, {{prioridad}}, {{vencimiento}}, {{empresa}}</div>
+      </div>
+      <div class="field"><label>Plantilla WhatsApp — tarea por vencer</label>
+        <textarea id="info-msg-wsp-tarea-vence" class="info-msg ta-desc" rows="2"></textarea>
+        <div class="info-vars">{{destinatario}}, {{titulo}}, {{asignado}}, {{vence_texto}}, {{estado}}, {{empresa}}</div>
+      </div>
+      <label class="info-check-row"><input type="checkbox" id="info-notif-crear" checked> Email al crear tarea</label>
+      <label class="info-check-row"><input type="checkbox" id="info-notif-wsp-crear" checked> WhatsApp al crear tarea (a cada integrante de la tarea)</label>
+      <label class="info-check-row"><input type="checkbox" id="info-notif-vencer" checked> Email cuando la tarea está por vencer</label>
+      <label class="info-check-row"><input type="checkbox" id="info-notif-wsp-vencer" checked> WhatsApp cuando la tarea está por vencer</label>
+    </div>
+    <div class="panel">
+      <div class="panel-title" style="margin-bottom:8px">Recordatorios pendientes hoy</div>
+      <p class="info-hint">WhatsApp abre wa.me (mensaje desde tu celular hacia el personal de cada uno). Email abre tu correo. Cada aviso se marca por día al usar el botón.</p>
+      <div class="section-tag" style="margin-top:8px">Clientes — WhatsApp (desde línea CMR)</div>
+      <div id="info-lista-clientes"><p class="info-empty">Cargando…</p></div>
+      <div class="section-tag" style="margin-top:16px">Tareas — por vencer (email + WhatsApp personal)</div>
+      <div id="info-lista-tareas"><p class="info-empty">Cargando…</p></div>
+      <div style="margin-top:12px"><button type="button" class="btn-ghost-edit" onclick="renderPanelRecordatorios()">Actualizar listas</button></div>
+    </div>
+    <div style="margin:1rem 0 1.5rem;display:flex;justify-content:flex-end">
+      <button class="btn-success" id="btn-guardar-info" onclick="guardarInformacion()">Guardar configuración</button>
+    </div>
+    <div class="panel" style="background:var(--surface2)">
+      <div class="section-tag">Envío 100% automático (opcional)</div>
+      <p class="info-hint">Para WhatsApp y emails sin abrir manualmente, conectá un cron (n8n, Make o Supabase Edge Functions) usando las tablas <code>configuracion</code>, <code>clientes</code>, <code>tareas</code> y <code>recordatorios_log</code>. Ejecutá <code>supabase/informacion.sql</code> si aún no lo hiciste.</p>
+    </div>
+  </div>
+  </div>
+
 </div>
 
 <div class="modal-bg" id="modal-mov">
@@ -716,7 +814,7 @@ function mostrarApp(){
   av.textContent = u.nombre.charAt(0).toUpperCase();
   av.style.background = u.color;
   document.getElementById('user-name').textContent = u.nombre;
-  verificarSupabase().then(ok => { if(ok){ poblarMeses(); cargarDatos(); cargarClientes(); initTareaForm(); } });
+  verificarSupabase().then(ok => { if(ok){ poblarMeses(); cargarDatos(); cargarClientes(); initTareaForm(); initInformacionApp(); } });
   setDefaultFechaVence();
 }
 
@@ -932,6 +1030,7 @@ function showPage(id, tab){
   if(id === 'estadisticas' && supabaseConectado) cargarEstadisticas();
   if(id === 'tareas' && supabaseConectado) cargarTareas();
   if(id === 'documentos' && supabaseConectado) { poblarFiltroEstadoDoc(); cargarDocumentos(); }
+  if(id === 'informacion' && supabaseConectado) cargarInformacion();
 }
 
 // ─── clientes ────────────────────────────
@@ -1110,6 +1209,7 @@ async function cargarClientes(){
   renderPanelRenovaciones(clientesCompletos);
   actualizarBannerRenovaciones(clientesCompletos);
   renderTablaClientes(lista);
+  if(typeof verificarRecordatoriosPendientes === 'function') verificarRecordatoriosPendientes();
 }
 
 function renderTablaClientes(lista){
@@ -1417,7 +1517,7 @@ async function agregarTarea(){
   if(!titulo){ toast('Ingresá el título'); return; }
   const btn = document.getElementById('btn-ta-add');
   btn.disabled=true; btn.textContent='Guardando…';
-  const { error } = await sb.from('tareas').insert({ titulo, descripcion, asignado_a, prioridad, estado:'Pendiente', fecha_vencimiento, colaborador_1, colaborador_2 });
+  const { data: tareaNueva, error } = await sb.from('tareas').insert({ titulo, descripcion, asignado_a, prioridad, estado:'Pendiente', fecha_vencimiento, colaborador_1, colaborador_2 }).select().single();
   if(error){ toast(supabaseErrMsg(error)); }
   else{
     document.getElementById('ta-titulo').value='';
@@ -1427,6 +1527,7 @@ async function agregarTarea(){
     document.getElementById('ta-colab2').value='';
     toast('Tarea agregada');
     await cargarTareas();
+    if(tareaNueva && typeof notificarTareaCreada === 'function') await notificarTareaCreada(tareaNueva);
   }
   btn.disabled=false; btn.textContent='+ Agregar tarea';
 }
@@ -1565,5 +1666,6 @@ document.getElementById('desc').addEventListener('keydown',e=>{ if(e.key==='Ente
 document.getElementById('monto').addEventListener('keydown',e=>{ if(e.key==='Enter') agregar(); });
 </script>
 <script src="js/documentos.js"></script>
+<script src="js/informacion.js"></script>
 </body>
 </html>
