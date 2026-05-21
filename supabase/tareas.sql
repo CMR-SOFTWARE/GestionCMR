@@ -12,6 +12,8 @@ create table if not exists public.tareas (
   prioridad text not null default 'Media' check (prioridad in ('Alta', 'Media', 'Baja')),
   estado text not null default 'Pendiente' check (estado in ('Pendiente', 'En progreso', 'Completada')),
   fecha_vencimiento date,
+  colaborador_1 text check (colaborador_1 is null or colaborador_1 in ('Tomi', 'Chipi', 'Gena')),
+  colaborador_2 text check (colaborador_2 is null or colaborador_2 in ('Tomi', 'Chipi', 'Gena')),
   created_at timestamptz not null default now()
 );
 
@@ -23,6 +25,8 @@ alter table public.tareas add column if not exists asignado_a text;
 alter table public.tareas add column if not exists prioridad text default 'Media';
 alter table public.tareas add column if not exists estado text default 'Pendiente';
 alter table public.tareas add column if not exists fecha_vencimiento date;
+alter table public.tareas add column if not exists colaborador_1 text;
+alter table public.tareas add column if not exists colaborador_2 text;
 alter table public.tareas add column if not exists created_at timestamptz default now();
 
 update public.tareas set id = gen_random_uuid() where id is null;

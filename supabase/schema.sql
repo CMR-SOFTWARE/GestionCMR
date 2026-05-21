@@ -95,6 +95,8 @@ create table if not exists public.tareas (
   prioridad text not null default 'Media' check (prioridad in ('Alta', 'Media', 'Baja')),
   estado text not null default 'Pendiente' check (estado in ('Pendiente', 'En progreso', 'Completada')),
   fecha_vencimiento date,
+  colaborador_1 text check (colaborador_1 is null or colaborador_1 in ('Tomi', 'Chipi', 'Gena')),
+  colaborador_2 text check (colaborador_2 is null or colaborador_2 in ('Tomi', 'Chipi', 'Gena')),
   created_at timestamptz not null default now()
 );
 

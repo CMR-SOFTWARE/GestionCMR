@@ -70,7 +70,7 @@ FROM public.clientes;
 -- ─── EXPORTAR tareas ──────────────────────────────────────────────
 SELECT string_agg(
   format(
-    'INSERT INTO public.tareas (id, titulo, descripcion, asignado_a, prioridad, estado, fecha_vencimiento, created_at) VALUES (%L, %L, %L, %L, %L, %L, %L, %L);',
+    'INSERT INTO public.tareas (id, titulo, descripcion, asignado_a, prioridad, estado, fecha_vencimiento, colaborador_1, colaborador_2, created_at) VALUES (%L, %L, %L, %L, %L, %L, %L, %L, %L, %L);',
     id::text,
     titulo,
     COALESCE(descripcion, ''),
@@ -78,6 +78,8 @@ SELECT string_agg(
     prioridad,
     estado,
     COALESCE(fecha_vencimiento::text, NULL),
+    colaborador_1,
+    colaborador_2,
     created_at::text
   ),
   E'\n'

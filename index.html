@@ -103,7 +103,8 @@ tr.tarea-mia td{background:rgba(127,119,221,.06)!important}
 tr.tarea-mia td:first-child{border-left:3px solid var(--teal)}
 .tarea-titulo{font-weight:600}
 .tarea-desc{font-size:12px;color:var(--text3);margin-top:2px}
-.form-tarea{grid-template-columns:1.5fr 1fr 1fr 1fr 1fr}
+.form-tarea{grid-template-columns:1.5fr 1fr 1fr 1fr}
+.form-tarea-row2{grid-template-columns:1fr 1fr 1fr;margin-top:10px}
 textarea.ta-desc{width:100%;min-height:38px;height:38px;border:1.5px solid var(--border);border-radius:9px;background:var(--surface2);color:var(--text);padding:8px 12px;font-size:13px;font-family:inherit;resize:vertical}
 textarea.ta-desc:focus{border-color:var(--teal2);box-shadow:0 0 0 3px rgba(10,157,143,.12);background:#fff;outline:none}
 .pct-bar{height:6px;background:#e2e8f0;border-radius:3px;margin-top:6px;overflow:hidden}
@@ -446,7 +447,11 @@ tbody tr:hover td{background:var(--surface2)}
         <div class="field"><label>Descripción</label><textarea id="ta-desc" class="ta-desc" placeholder="Opcional" rows="1"></textarea></div>
         <div class="field"><label>Asignado a</label><select id="ta-asignado"><option>Tomi</option><option>Chipi</option><option>Gena</option></select></div>
         <div class="field"><label>Prioridad</label><select id="ta-prio"><option>Alta</option><option selected>Media</option><option>Baja</option></select></div>
+      </div>
+      <div class="form-grid form-tarea-row2">
         <div class="field"><label>Vencimiento</label><input id="ta-vence" type="date"></div>
+        <div class="field"><label>Colaborador 1</label><select id="ta-colab1"><option value="">—</option><option>Tomi</option><option>Chipi</option><option>Gena</option></select></div>
+        <div class="field"><label>Colaborador 2</label><select id="ta-colab2"><option value="">—</option><option>Tomi</option><option>Chipi</option><option>Gena</option></select></div>
       </div>
       <div style="margin-top:12px;display:flex;justify-content:flex-end"><button class="btn-success" id="btn-ta-add" onclick="agregarTarea()">+ Agregar tarea</button></div>
     </div>
@@ -461,8 +466,8 @@ tbody tr:hover td{background:var(--surface2)}
         </div>
       </div>
       <div class="table-wrap">
-        <table><thead><tr><th>Tarea</th><th>Asignado</th><th>Prioridad</th><th>Vencimiento</th><th>Estado</th><th style="width:72px">Acciones</th></tr></thead>
-        <tbody id="tabla-tareas"><tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--text3)">Cargando…</td></tr></tbody></table>
+        <table><thead><tr><th>Tarea</th><th>Asignado</th><th>Colaboradores</th><th>Prioridad</th><th>Vencimiento</th><th>Estado</th><th style="width:72px">Acciones</th></tr></thead>
+        <tbody id="tabla-tareas"><tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text3)">Cargando…</td></tr></tbody></table>
       </div>
       <div id="empty-tareas" class="empty-state" style="display:none"><div class="empty-state-icon">✓</div>Sin tareas. Creá la primera arriba.</div>
     </div>
@@ -553,6 +558,10 @@ tbody tr:hover td{background:var(--surface2)}
     <div class="form-grid form-2" style="margin-bottom:10px">
       <div class="field"><label>Estado</label><select id="et-estado"><option>Pendiente</option><option>En progreso</option><option>Completada</option></select></div>
       <div class="field"><label>Vencimiento</label><input id="et-vence" type="date"></div>
+    </div>
+    <div class="form-grid form-2" style="margin-bottom:10px">
+      <div class="field"><label>Colaborador 1</label><select id="et-colab1"><option value="">—</option><option>Tomi</option><option>Chipi</option><option>Gena</option></select></div>
+      <div class="field"><label>Colaborador 2</label><select id="et-colab2"><option value="">—</option><option>Tomi</option><option>Chipi</option><option>Gena</option></select></div>
     </div>
     <div class="modal-footer"><button onclick="cerrarModalTarea()">Cancelar</button><button class="btn-primary" onclick="guardarTareaEditada()">Guardar</button></div>
   </div>
@@ -1321,7 +1330,27 @@ function pillEstadoT(e){
   if(e==='Completada') return 'pill-est-completada';
   return 'pill-est-pendiente';
 }
-function esMiTarea(t){ return sesion && USUARIOS[sesion]?.nombre === t.asignado_a; }
+function esMiTarea(t){
+  const n = USUARIOS[sesion]?.nombre;
+  return n && (t.asignado_a === n || t.colaborador_1 === n || t.colaborador_2 === n);
+}
+function colaboradorDesdeSelect(id){
+  const v = document.getElementById(id)?.value;
+  return v || null;
+}
+function textoColaboradores(t){
+  const c = [t.colaborador_1, t.colaborador_2].filter(Boolean);
+  return c.length ? c.join(', ') : '—';
+}
+
+function ordenarTareasPorVencimiento(lista){
+  return [...lista].sort((a, b) => {
+    if(!a.fecha_vencimiento && !b.fecha_vencimiento) return 0;
+    if(!a.fecha_vencimiento) return 1;
+    if(!b.fecha_vencimiento) return -1;
+    return a.fecha_vencimiento.localeCompare(b.fecha_vencimiento);
+  });
+}
 
 async function cargarTareas(){
   if(!sb || !requiereSupabase()) return;
@@ -1329,7 +1358,7 @@ async function cargarTareas(){
   const fAsg = document.getElementById('f-ta-asignado').value;
   const fPrio = document.getElementById('f-ta-prio').value;
   const fBus = document.getElementById('f-ta-buscar').value.trim().toLowerCase();
-  const { data, error } = await sb.from('tareas').select('*').order('created_at', { ascending: false });
+  const { data, error } = await sb.from('tareas').select('*').order('fecha_vencimiento', { ascending: true, nullsFirst: false });
   if(error){ toast(supabaseErrMsg(error).replace('movimientos','tareas')); console.error(error); return; }
   let lista = data || [];
   const full = lista;
@@ -1347,7 +1376,7 @@ async function cargarTareas(){
   document.getElementById('t-pend').textContent = p;
   document.getElementById('t-prog').textContent = pr;
   document.getElementById('t-done').textContent = d;
-  renderTablaTareas(lista);
+  renderTablaTareas(ordenarTareasPorVencimiento(lista));
 }
 
 function renderTablaTareas(lista){
@@ -1360,9 +1389,11 @@ function renderTablaTareas(lista){
     const mia = t.asignado_a === miNombre;
     const desc = t.descripcion ? `<div class="tarea-desc">${esc(t.descripcion)}</div>` : '';
     const vence = t.fecha_vencimiento || '—';
+    const colabs = textoColaboradores(t);
     return `<tr class="${mia?'tarea-mia':''}">
       <td><div class="tarea-titulo">${esc(t.titulo)}</div>${desc}</td>
       <td>${esc(t.asignado_a)}</td>
+      <td style="font-size:12px;color:var(--text2)">${esc(colabs)}</td>
       <td><span class="pill ${pillPrioridad(t.prioridad)}">${t.prioridad}</span></td>
       <td style="font-size:12px">${vence}</td>
       <td><span class="pill pill-estado ${pillEstadoT(t.estado)}" onclick="ciclarEstadoTarea('${t.id}')" title="Clic para cambiar estado">${t.estado}</span></td>
@@ -1381,15 +1412,19 @@ async function agregarTarea(){
   const asignado_a = document.getElementById('ta-asignado').value;
   const prioridad = document.getElementById('ta-prio').value;
   const fecha_vencimiento = document.getElementById('ta-vence').value || null;
+  const colaborador_1 = colaboradorDesdeSelect('ta-colab1');
+  const colaborador_2 = colaboradorDesdeSelect('ta-colab2');
   if(!titulo){ toast('Ingresá el título'); return; }
   const btn = document.getElementById('btn-ta-add');
   btn.disabled=true; btn.textContent='Guardando…';
-  const { error } = await sb.from('tareas').insert({ titulo, descripcion, asignado_a, prioridad, estado:'Pendiente', fecha_vencimiento });
+  const { error } = await sb.from('tareas').insert({ titulo, descripcion, asignado_a, prioridad, estado:'Pendiente', fecha_vencimiento, colaborador_1, colaborador_2 });
   if(error){ toast(supabaseErrMsg(error)); }
   else{
     document.getElementById('ta-titulo').value='';
     document.getElementById('ta-desc').value='';
     document.getElementById('ta-vence').value='';
+    document.getElementById('ta-colab1').value='';
+    document.getElementById('ta-colab2').value='';
     toast('Tarea agregada');
     await cargarTareas();
   }
@@ -1420,6 +1455,8 @@ async function abrirEditarTarea(id){
   document.getElementById('et-prio').value = t.prioridad;
   document.getElementById('et-estado').value = t.estado;
   document.getElementById('et-vence').value = t.fecha_vencimiento || '';
+  document.getElementById('et-colab1').value = t.colaborador_1 || '';
+  document.getElementById('et-colab2').value = t.colaborador_2 || '';
   document.getElementById('modal-tarea').classList.add('open');
 }
 
@@ -1433,8 +1470,10 @@ async function guardarTareaEditada(){
   const prioridad = document.getElementById('et-prio').value;
   const estado = document.getElementById('et-estado').value;
   const fecha_vencimiento = document.getElementById('et-vence').value || null;
+  const colaborador_1 = colaboradorDesdeSelect('et-colab1');
+  const colaborador_2 = colaboradorDesdeSelect('et-colab2');
   if(!titulo){ toast('Ingresá el título'); return; }
-  const { error } = await sb.from('tareas').update({ titulo, descripcion, asignado_a, prioridad, estado, fecha_vencimiento }).eq('id', editandoTareaId);
+  const { error } = await sb.from('tareas').update({ titulo, descripcion, asignado_a, prioridad, estado, fecha_vencimiento, colaborador_1, colaborador_2 }).eq('id', editandoTareaId);
   if(error){ toast(supabaseErrMsg(error)); return; }
   toast('Tarea actualizada');
   cerrarModalTarea();
