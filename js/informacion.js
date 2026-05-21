@@ -410,7 +410,7 @@ async function renderPanelRecordatorios(){
   const total = clientes.length + tareas.length;
   if(badge){
     badge.textContent = total;
-    badge.style.display = total ? 'inline-flex' : 'none';
+    badge.classList.toggle('show', total > 0);
   }
   const banner = document.getElementById('banner-recordatorios');
   if(banner){
