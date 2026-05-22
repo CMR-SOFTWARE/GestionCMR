@@ -470,6 +470,11 @@ tbody tr:hover td{background:var(--surface2)}
       <div class="stat-card"><div class="stat-icon stat-icon-teal"><svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" stroke="#0a9d8f" stroke-width="2"/></svg></div><div><div class="stat-label">Clientes vigentes</div><div class="stat-val val-green" id="st-cli-vig">0</div></div></div>
     </div>
     <div class="panel"><div class="panel-title" style="margin-bottom:1rem">Ingresos vs gastos — últimos 6 meses</div><div class="chart-wrap"><canvas id="chart-meses"></canvas></div></div>
+    <div class="panel" style="margin-top:1.5rem">
+      <div class="panel-title" style="margin-bottom:.35rem">Clientes por mes — últimos 12 meses</div>
+      <p style="font-size:12px;color:var(--text3);margin-bottom:1rem">Barras: altas nuevas ese mes. Línea: total acumulado de clientes.</p>
+      <div class="chart-wrap"><canvas id="chart-clientes-mes"></canvas></div>
+    </div>
     <div class="stats-grid-2">
       <div class="panel"><div class="panel-title" style="margin-bottom:1rem">Gastos por categoría</div><div class="table-wrap"><table><thead><tr><th>Categoría</th><th style="text-align:right">Total</th><th style="text-align:right;width:70px">%</th></tr></thead><tbody id="tabla-cat-gas"></tbody></table></div></div>
       <div class="panel"><div class="panel-title" style="margin-bottom:1rem">Ingresos por socio</div><div class="table-wrap"><table><thead><tr><th>Socio</th><th style="text-align:right">Total</th><th style="text-align:right;width:70px">%</th></tr></thead><tbody id="tabla-socio-ing"></tbody></table></div></div>
@@ -586,7 +591,7 @@ tbody tr:hover td{background:var(--surface2)}
       </div>
       <div class="field" style="margin-bottom:10px"><label>Plantilla WhatsApp — tarea nueva</label>
         <textarea id="info-msg-wsp-tarea-nueva" class="info-msg ta-desc" rows="2"></textarea>
-        <div class="info-vars">{{destinatario}}, {{titulo}}, {{asignado}}, {{prioridad}}, {{vencimiento}}, {{empresa}}</div>
+        <div class="info-vars">{{destinatario}}, {{titulo}}, {{asignado}}, {{prioridad}}, {{creada}}, {{limite}}, {{periodo}}, {{empresa}}</div>
       </div>
       <div class="field"><label>Plantilla WhatsApp — tarea por vencer</label>
         <textarea id="info-msg-wsp-tarea-vence" class="info-msg ta-desc" rows="2"></textarea>
@@ -1350,10 +1355,32 @@ function buscarClientesDebounce(){
 
 // ─── estadísticas ────────────────────────
 let chartMeses = null;
+let chartClientesMes = null;
 
 function mesKey(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
 function labelMes(ym){ const m=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']; const [y,mo]=ym.split('-'); return m[+mo-1]+' '+y.slice(2); }
-function ultimos6Meses(){ const r=[]; const h=new Date(); for(let i=5;i>=0;i--){ const x=new Date(h.getFullYear(),h.getMonth()-i,1); r.push(mesKey(x)); } return r; }
+function ultimosNMeses(n){ const r=[]; const h=new Date(); for(let i=n-1;i>=0;i--){ const x=new Date(h.getFullYear(),h.getMonth()-i,1); r.push(mesKey(x)); } return r; }
+function ultimos6Meses(){ return ultimosNMeses(6); }
+
+function contarClientesNuevosPorMes(clientes, meses){
+  const porMes = {};
+  meses.forEach(m => { porMes[m] = 0; });
+  (clientes||[]).forEach(c => {
+    if(!c.created_at) return;
+    const m = String(c.created_at).slice(0, 7);
+    if(porMes[m] !== undefined) porMes[m]++;
+  });
+  return porMes;
+}
+
+function clientesAcumuladosPorMes(clientes, meses){
+  const lista = clientes || [];
+  return meses.map(ym => {
+    const [y, mo] = ym.split('-').map(Number);
+    const finMes = new Date(y, mo, 0, 23, 59, 59);
+    return lista.filter(c => c.created_at && new Date(c.created_at) <= finMes).length;
+  });
+}
 
 async function cargarEstadisticas(){
   if(!sb || !requiereSupabase()) return;
@@ -1384,8 +1411,64 @@ async function cargarEstadisticas(){
   (clis||[]).forEach(c => { if(estadoCliente(c).key==='vigente') vig++; });
   document.getElementById('st-cli-vig').textContent = vig;
   renderChartMeses(meses, porMes);
+  const mesesCli = ultimosNMeses(12);
+  const porMesCli = contarClientesNuevosPorMes(clis, mesesCli);
+  renderChartClientesMes(mesesCli, porMesCli, clientesAcumuladosPorMes(clis, mesesCli));
   renderTablaCatGas(mov);
   renderTablaSocioIng(mov);
+}
+
+function renderChartClientesMes(meses, porMes, acumulado){
+  const ctx = document.getElementById('chart-clientes-mes');
+  if(!ctx || typeof Chart === 'undefined') return;
+  if(chartClientesMes) chartClientesMes.destroy();
+  chartClientesMes = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: meses.map(labelMes),
+      datasets: [
+        {
+          label: 'Nuevos en el mes',
+          data: meses.map(m => porMes[m] || 0),
+          backgroundColor: 'rgba(26,111,196,0.82)',
+          borderRadius: 6,
+          yAxisID: 'y'
+        },
+        {
+          type: 'line',
+          label: 'Total acumulado',
+          data: acumulado,
+          borderColor: '#0a9d8f',
+          backgroundColor: 'rgba(10,157,143,0.12)',
+          borderWidth: 2,
+          pointRadius: 4,
+          tension: 0.25,
+          yAxisID: 'y1'
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { position: 'top' } },
+      scales: {
+        y: {
+          beginAtZero: true,
+          position: 'left',
+          title: { display: true, text: 'Nuevos' },
+          ticks: { stepSize: 1, precision: 0 }
+        },
+        y1: {
+          beginAtZero: true,
+          position: 'right',
+          grid: { drawOnChartArea: false },
+          title: { display: true, text: 'Total' },
+          ticks: { stepSize: 1, precision: 0 }
+        }
+      }
+    }
+  });
 }
 
 function renderChartMeses(meses, porMes){
@@ -1552,7 +1635,10 @@ async function agregarTarea(){
     document.getElementById('ta-colab2').value='';
     toast('Tarea agregada');
     await cargarTareas();
-    if(tareaNueva && typeof notificarTareaCreada === 'function') await notificarTareaCreada(tareaNueva);
+    if(tareaNueva){
+      if(!tareaNueva.created_at) tareaNueva.created_at = new Date().toISOString();
+      if(typeof notificarTareaCreada === 'function') await notificarTareaCreada(tareaNueva);
+    }
   }
   btn.disabled=false; btn.textContent='+ Agregar tarea';
 }

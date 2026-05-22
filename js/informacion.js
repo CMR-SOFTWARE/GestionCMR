@@ -17,7 +17,7 @@ const DEFAULT_CONFIG = {
   wsp_tomi: '',
   wsp_chipi: '',
   wsp_gena: '',
-  mensaje_wsp_tarea_creada: 'Hola {{destinatario}}, {{empresa}}: *nueva tarea* «{{titulo}}». Asignado: {{asignado}}. Prioridad: {{prioridad}}. Vence: {{vencimiento}}.',
+  mensaje_wsp_tarea_creada: 'Hola {{destinatario}}, {{empresa}}: *nueva tarea* «{{titulo}}». Asignado: {{asignado}}. Prioridad: {{prioridad}}. Creada: {{creada}}. Límite: {{limite}}. ({{periodo}})',
   mensaje_wsp_tarea_vence: 'Hola {{destinatario}}, {{empresa}}: recordatorio — la tarea «{{titulo}}» ({{asignado}}) {{vence_texto}}. Estado: {{estado}}.',
   dias_aviso_tarea: 2,
   notif_tarea_al_crear: true,
@@ -88,6 +88,38 @@ function textoVencimientoTarea(tarea){
   if(dias === 1) return 'vence mañana';
   if(dias > 0) return `vence el ${tarea.fecha_vencimiento} (en ${dias} días)`;
   return `venció el ${tarea.fecha_vencimiento}`;
+}
+
+function formatearFechaTarea(val){
+  if(!val) return '—';
+  const s = String(val);
+  const d = s.includes('T') ? new Date(s) : new Date(s.slice(0, 10) + 'T12:00:00');
+  if(isNaN(d.getTime())) return s.slice(0, 10);
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  return `${dd}/${mm}/${d.getFullYear()}`;
+}
+
+function varsTareaNotificacion(tarea){
+  const creada = formatearFechaTarea(tarea.created_at || new Date().toISOString());
+  const limite = tarea.fecha_vencimiento ? formatearFechaTarea(tarea.fecha_vencimiento) : 'sin fecha límite';
+  const periodo = tarea.fecha_vencimiento
+    ? `Creada el ${creada} — límite hasta el ${limite}`
+    : `Creada el ${creada} — sin fecha límite`;
+  return {
+    titulo: tarea.titulo,
+    asignado: tarea.asignado_a,
+    prioridad: tarea.prioridad,
+    estado: tarea.estado,
+    creada,
+    fecha_creacion: creada,
+    limite,
+    fecha_limite: limite,
+    vencimiento: limite,
+    periodo,
+    vence_texto: textoVencimientoTarea(tarea),
+    empresa: (configCMR || DEFAULT_CONFIG).empresa_nombre || 'CMR'
+  };
 }
 
 function logKey(tipo, refId){
@@ -214,13 +246,7 @@ function mensajeWspTarea(tipo, tarea, destinatario){
     : (c.mensaje_wsp_tarea_vence || DEFAULT_CONFIG.mensaje_wsp_tarea_vence);
   return reemplazarPlantilla(plantilla, {
     destinatario,
-    titulo: tarea.titulo,
-    asignado: tarea.asignado_a,
-    prioridad: tarea.prioridad,
-    vencimiento: tarea.fecha_vencimiento || 'sin fecha',
-    vence_texto: textoVencimientoTarea(tarea),
-    estado: tarea.estado,
-    empresa: c.empresa_nombre || 'CMR'
+    ...varsTareaNotificacion(tarea)
   });
 }
 
@@ -286,12 +312,15 @@ function asuntoEmailTarea(tipo, tarea){
 }
 
 function cuerpoEmailTarea(tipo, tarea){
+  const v = varsTareaNotificacion(tarea);
   if(tipo === 'creada'){
     return `Se creó una nueva tarea en ${configCMR?.empresa_nombre || 'CMR'}:\n\n` +
       `Título: ${tarea.titulo}\n` +
       `Asignado: ${tarea.asignado_a}\n` +
       `Prioridad: ${tarea.prioridad}\n` +
-      `Vencimiento: ${tarea.fecha_vencimiento || '—'}\n` +
+      `Creada: ${v.creada}\n` +
+      `Límite (vencimiento): ${v.limite}\n` +
+      `Período: ${v.periodo}\n` +
       (tarea.descripcion ? `Descripción: ${tarea.descripcion}\n` : '') +
       `\n— Sistema de gestión CMR`;
   }

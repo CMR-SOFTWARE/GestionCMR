@@ -12,7 +12,7 @@ create table if not exists public.configuracion (
   wsp_tomi text,
   wsp_chipi text,
   wsp_gena text,
-  mensaje_wsp_tarea_creada text not null default 'Hola {{destinatario}}, {{empresa}}: *nueva tarea* «{{titulo}}». Asignado: {{asignado}}. Prioridad: {{prioridad}}. Vence: {{vencimiento}}.',
+  mensaje_wsp_tarea_creada text not null default 'Hola {{destinatario}}, {{empresa}}: *nueva tarea* «{{titulo}}». Asignado: {{asignado}}. Prioridad: {{prioridad}}. Creada: {{creada}}. Límite: {{limite}}. ({{periodo}})',
   mensaje_wsp_tarea_vence text not null default 'Hola {{destinatario}}, {{empresa}}: recordatorio — la tarea «{{titulo}}» ({{asignado}}) {{vence_texto}}. Estado: {{estado}}.',
   dias_aviso_tarea int not null default 2 check (dias_aviso_tarea >= 0 and dias_aviso_tarea <= 30),
   notif_tarea_al_crear boolean not null default true,
@@ -34,8 +34,8 @@ alter table public.configuracion add column if not exists notif_tarea_wsp_vencer
 update public.configuracion set telefono_empresa = '3364 57-8599'
 where id = 1 and (telefono_empresa is null or trim(telefono_empresa) = '');
 
-update public.configuracion set mensaje_wsp_tarea_creada = 'Hola {{destinatario}}, {{empresa}}: *nueva tarea* «{{titulo}}». Asignado: {{asignado}}. Prioridad: {{prioridad}}. Vence: {{vencimiento}}.'
-where id = 1 and mensaje_wsp_tarea_creada is null;
+update public.configuracion set mensaje_wsp_tarea_creada = 'Hola {{destinatario}}, {{empresa}}: *nueva tarea* «{{titulo}}». Asignado: {{asignado}}. Prioridad: {{prioridad}}. Creada: {{creada}}. Límite: {{limite}}. ({{periodo}})'
+where id = 1 and (mensaje_wsp_tarea_creada is null or mensaje_wsp_tarea_creada not like '%{{creada}}%');
 
 update public.configuracion set mensaje_wsp_tarea_vence = 'Hola {{destinatario}}, {{empresa}}: recordatorio — la tarea «{{titulo}}» ({{asignado}}) {{vence_texto}}. Estado: {{estado}}.'
 where id = 1 and mensaje_wsp_tarea_vence is null;
