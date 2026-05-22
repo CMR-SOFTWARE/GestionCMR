@@ -472,7 +472,7 @@ tbody tr:hover td{background:var(--surface2)}
     <div class="panel"><div class="panel-title" style="margin-bottom:1rem">Ingresos vs gastos — últimos 6 meses</div><div class="chart-wrap"><canvas id="chart-meses"></canvas></div></div>
     <div class="panel" style="margin-top:1.5rem">
       <div class="panel-title" style="margin-bottom:.35rem">Clientes por mes — últimos 12 meses</div>
-      <p style="font-size:12px;color:var(--text3);margin-bottom:1rem">Barras: altas nuevas ese mes. Línea: total acumulado de clientes.</p>
+      <p style="font-size:12px;color:var(--text3);margin-bottom:1rem">Barras: clientes cuando confirmaste el pago. Los cargados sin confirmar no suman hasta que uses «Confirmó el pago».</p>
       <div class="chart-wrap"><canvas id="chart-clientes-mes"></canvas></div>
     </div>
     <div class="stats-grid-2">
@@ -1177,13 +1177,19 @@ async function confirmarRenovacionCliente(id){
   });
   if(eMov){ toast(supabaseErrMsg(eMov)); return; }
 
-  const { error: eCl } = await sb.from('clientes').update({
+  const upd = {
     fecha_vencimiento: nuevaFecha, pago_confirmado: true, activo: true, updated_at: new Date().toISOString()
-  }).eq('id', id);
+  };
+  if(esPrimera) upd.fecha_confirmacion_pago = new Date().toISOString();
+
+  const { error: eCl } = await sb.from('clientes').update(upd).eq('id', id);
   if(eCl){ toast(supabaseErrMsg(eCl)); return; }
 
   toast(esPrimera ? 'Primer pago confirmado — ingreso registrado en Movimientos' : 'Renovación confirmada — ingreso registrado en Movimientos');
-  await Promise.all([cargarClientes(), cargarDatos(), poblarMeses()]);
+  const promesas = [cargarClientes(), cargarDatos(), poblarMeses()];
+  if(document.getElementById('page-estadisticas')?.classList.contains('active')) promesas.push(cargarEstadisticas());
+  if(typeof verificarRecordatoriosPendientes === 'function') promesas.push(verificarRecordatoriosPendientes());
+  await Promise.all(promesas);
 }
 
 async function darDeBajaCliente(id){
@@ -1362,13 +1368,19 @@ function labelMes(ym){ const m=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago',
 function ultimosNMeses(n){ const r=[]; const h=new Date(); for(let i=n-1;i>=0;i--){ const x=new Date(h.getFullYear(),h.getMonth()-i,1); r.push(mesKey(x)); } return r; }
 function ultimos6Meses(){ return ultimosNMeses(6); }
 
+function mesConfirmacionCliente(c){
+  if(!pagoConfirmado(c)) return null;
+  const f = c.fecha_confirmacion_pago;
+  if(f) return String(f).slice(0, 7);
+  return null;
+}
+
 function contarClientesNuevosPorMes(clientes, meses){
   const porMes = {};
   meses.forEach(m => { porMes[m] = 0; });
   (clientes||[]).forEach(c => {
-    if(!c.created_at) return;
-    const m = String(c.created_at).slice(0, 7);
-    if(porMes[m] !== undefined) porMes[m]++;
+    const m = mesConfirmacionCliente(c);
+    if(m && porMes[m] !== undefined) porMes[m]++;
   });
   return porMes;
 }
@@ -1378,7 +1390,11 @@ function clientesAcumuladosPorMes(clientes, meses){
   return meses.map(ym => {
     const [y, mo] = ym.split('-').map(Number);
     const finMes = new Date(y, mo, 0, 23, 59, 59);
-    return lista.filter(c => c.created_at && new Date(c.created_at) <= finMes).length;
+    return lista.filter(c => {
+      const f = c.fecha_confirmacion_pago;
+      if(!pagoConfirmado(c) || !f) return false;
+      return new Date(f) <= finMes;
+    }).length;
   });
 }
 
@@ -1428,7 +1444,7 @@ function renderChartClientesMes(meses, porMes, acumulado){
       labels: meses.map(labelMes),
       datasets: [
         {
-          label: 'Nuevos en el mes',
+          label: 'Pago confirmado',
           data: meses.map(m => porMes[m] || 0),
           backgroundColor: 'rgba(26,111,196,0.82)',
           borderRadius: 6,
@@ -1456,7 +1472,7 @@ function renderChartClientesMes(meses, porMes, acumulado){
         y: {
           beginAtZero: true,
           position: 'left',
-          title: { display: true, text: 'Nuevos' },
+          title: { display: true, text: 'Confirmados' },
           ticks: { stepSize: 1, precision: 0 }
         },
         y1: {

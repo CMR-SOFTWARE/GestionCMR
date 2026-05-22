@@ -10,10 +10,18 @@ create table if not exists public.clientes (
   notas text,
   periodicidad text not null default 'mensual' check (periodicidad in ('mensual', 'semestral', 'anual')),
   pago_confirmado boolean not null default false,
+  fecha_confirmacion_pago timestamptz,
   activo boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.clientes add column if not exists fecha_confirmacion_pago timestamptz;
+
+-- Solo clientes que ya tenían pago confirmado (no los pendientes de primer pago)
+update public.clientes
+set fecha_confirmacion_pago = coalesce(created_at, updated_at, now())
+where pago_confirmado = true and fecha_confirmacion_pago is null;
 
 create index if not exists clientes_vencimiento_idx on public.clientes (fecha_vencimiento);
 create index if not exists clientes_nombre_idx on public.clientes (nombre);
