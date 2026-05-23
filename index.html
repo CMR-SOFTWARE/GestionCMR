@@ -1487,6 +1487,12 @@ function renderChartClientesMes(meses, porMes, acumulado, porMesPend){
   if(!ctx || typeof Chart === 'undefined') return;
   if(chartClientesMes) chartClientesMes.destroy();
   const pend = porMesPend || {};
+  const datosConf = meses.map(m => porMes[m] || 0);
+  const datosPend = meses.map(m => pend[m] || 0);
+  const datosTot = acumulado || [];
+  const maxVal = Math.max(1, ...datosConf, ...datosPend, ...datosTot);
+  const topeEje = Math.max(maxVal + 1, 3);
+
   chartClientesMes = new Chart(ctx, {
     type: 'bar',
     data: {
@@ -1494,32 +1500,29 @@ function renderChartClientesMes(meses, porMes, acumulado, porMesPend){
       datasets: [
         {
           label: 'Pago confirmado',
-          data: meses.map(m => porMes[m] || 0),
+          data: datosConf,
           backgroundColor: 'rgba(26,111,196,0.82)',
           borderRadius: 6,
-          yAxisID: 'y',
           order: 2
         },
         {
           label: 'Proyección (pendientes)',
-          data: meses.map(m => pend[m] || 0),
+          data: datosPend,
           backgroundColor: 'rgba(196,122,10,0.55)',
           borderColor: 'rgba(196,122,10,0.9)',
           borderWidth: 1,
           borderRadius: 6,
-          yAxisID: 'y',
           order: 2
         },
         {
           type: 'line',
           label: 'Total al cierre del mes',
-          data: acumulado,
+          data: datosTot,
           borderColor: '#0a9d8f',
           backgroundColor: 'rgba(10,157,143,0.12)',
           borderWidth: 2,
           pointRadius: 4,
           tension: 0.25,
-          yAxisID: 'y1',
           order: 1
         }
       ]
@@ -1532,15 +1535,8 @@ function renderChartClientesMes(meses, porMes, acumulado, porMesPend){
       scales: {
         y: {
           beginAtZero: true,
-          position: 'left',
-          title: { display: true, text: 'Clientes' },
-          ticks: { stepSize: 1, precision: 0 }
-        },
-        y1: {
-          beginAtZero: true,
-          position: 'right',
-          grid: { drawOnChartArea: false },
-          title: { display: true, text: 'Total' },
+          suggestedMax: topeEje,
+          title: { display: true, text: 'Cantidad de clientes' },
           ticks: { stepSize: 1, precision: 0 }
         }
       }
