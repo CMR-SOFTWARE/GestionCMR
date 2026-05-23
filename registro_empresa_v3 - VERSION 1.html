@@ -94,6 +94,7 @@ input[type=date]:focus{border-color:var(--teal2);box-shadow:0 0 0 3px rgba(10,15
 .socio-pill:hover{opacity:.75}
 .acciones-cell{display:flex;gap:2px;justify-content:flex-end;align-items:center}
 .chart-wrap{position:relative;height:320px;width:100%}
+.chart-wrap-wide{height:340px;min-width:100%}
 .stats-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
 @media(max-width:680px){.stats-grid-2{grid-template-columns:1fr}}
 .pill-prio-alta{background:rgba(229,62,62,.1);color:#c53030;border:1px solid rgba(229,62,62,.2)}
@@ -471,9 +472,9 @@ tbody tr:hover td{background:var(--surface2)}
     </div>
     <div class="panel"><div class="panel-title" style="margin-bottom:1rem">Ingresos vs gastos — últimos 6 meses</div><div class="chart-wrap"><canvas id="chart-meses"></canvas></div></div>
     <div class="panel" style="margin-top:1.5rem">
-      <div class="panel-title" style="margin-bottom:.35rem">Clientes por mes — últimos 12 meses</div>
-      <p style="font-size:12px;color:var(--text3);margin-bottom:1rem">Azul: pago confirmado. Naranja: proyección (pendientes de primer pago, según fecha de vencimiento). Si das de baja o eliminás un pendiente, sale de la proyección.</p>
-      <div class="chart-wrap"><canvas id="chart-clientes-mes"></canvas></div>
+      <div class="panel-title" style="margin-bottom:.35rem">Clientes por mes</div>
+      <p style="font-size:12px;color:var(--text3);margin-bottom:1rem">Azul: pago confirmado (últimos 12 meses). Naranja: pendientes según su fecha de vencimiento, también en meses futuros. Si das de baja o eliminás un pendiente, desaparece de la proyección.</p>
+      <div class="chart-wrap chart-wrap-wide"><canvas id="chart-clientes-mes"></canvas></div>
     </div>
     <div class="stats-grid-2">
       <div class="panel"><div class="panel-title" style="margin-bottom:1rem">Gastos por categoría</div><div class="table-wrap"><table><thead><tr><th>Categoría</th><th style="text-align:right">Total</th><th style="text-align:right;width:70px">%</th></tr></thead><tbody id="tabla-cat-gas"></tbody></table></div></div>
@@ -1421,6 +1422,23 @@ function contarClientesPendientesProyeccion(clientes, meses){
   return porMes;
 }
 
+/** Últimos 12 meses + meses futuros donde hay pendientes (por fecha de vencimiento) */
+function mesesParaGraficoClientes(clientes){
+  const meses = ultimosNMeses(12);
+  const ultimoHist = meses[meses.length - 1];
+  const futuros = new Set();
+  const hoy = new Date();
+  const topeFuturo = mesKey(new Date(hoy.getFullYear(), hoy.getMonth() + 18, 1));
+
+  (clientes||[]).forEach(c => {
+    if(!esPendienteProyeccion(c) || !c.fecha_vencimiento) return;
+    const m = String(c.fecha_vencimiento).slice(0, 7);
+    if(m > ultimoHist && m <= topeFuturo) futuros.add(m);
+  });
+
+  return meses.concat([...futuros].sort());
+}
+
 async function cargarEstadisticas(){
   if(!sb || !requiereSupabase()) return;
   const meses = ultimos6Meses();
@@ -1450,7 +1468,7 @@ async function cargarEstadisticas(){
   (clis||[]).forEach(c => { if(estadoCliente(c).key==='vigente') vig++; });
   document.getElementById('st-cli-vig').textContent = vig;
   renderChartMeses(meses, porMes);
-  const mesesCli = ultimosNMeses(12);
+  const mesesCli = mesesParaGraficoClientes(clis);
   const porMesCli = contarClientesNuevosPorMes(clis, mesesCli);
   const porMesPend = contarClientesPendientesProyeccion(clis, mesesCli);
   renderChartClientesMes(mesesCli, porMesCli, clientesAcumuladosPorMes(clis, mesesCli), porMesPend);
