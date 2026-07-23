@@ -1,0 +1,20 @@
+/* ─── Tema y variables ─── */
+
+:root, [data-theme="light"]{
+  --bg:#f0f4f8;--surface:#fff;--surface2:#f8fafc;--navy:#0d1b2e;--navy2:#162033;
+  --teal:#0a9d8f;--teal2:#07b5a5;--blue:#1a6fc4;--text:#0d1b2e;--text2:#4a5568;--text3:#8896ab;
+  --border:#e2e8f0;--border2:#cbd5e1;--green:#0a9d6e;--red:#e53e3e;
+  --shadow:0 1px 3px rgba(13,27,46,.08),0 4px 16px rgba(13,27,46,.06);
+  --surface-focus:#fff;--card:#fff;--muted-row:#f4f6f9;--col-bg:rgba(235,239,245,.92);
+  color-scheme:light;
+}
+[data-theme="dark"]{
+  --bg:#0b1220;--surface:#141c2c;--surface2:#1a2438;--navy:#080e1a;--navy2:#10182a;
+  --teal:#0fb5a5;--teal2:#14c9b8;--blue:#3b82f6;--text:#e8eef8;--text2:#b7c2d4;--text3:#8b9bb3;
+  --border:#243044;--border2:#334155;--green:#10b981;--red:#f87171;
+  --shadow:0 1px 3px rgba(0,0,0,.4),0 8px 28px rgba(0,0,0,.35);
+  --surface-focus:#1a2438;--card:#1a2438;--muted-row:#10182a;--col-bg:rgba(26,36,56,.95);
+  color-scheme:dark;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px}

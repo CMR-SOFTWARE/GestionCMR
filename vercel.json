@@ -1,5 +1,5 @@
 {
   "rewrites": [
-    { "source": "/", "destination": "/registro_empresa_v3 - VERSION 1.html" }
+    { "source": "/", "destination": "/index.html" }
   ]
 }

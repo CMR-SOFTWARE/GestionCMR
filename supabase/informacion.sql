@@ -30,6 +30,10 @@ alter table public.configuracion add column if not exists mensaje_wsp_tarea_crea
 alter table public.configuracion add column if not exists mensaje_wsp_tarea_vence text;
 alter table public.configuracion add column if not exists notif_tarea_wsp_crear boolean default true;
 alter table public.configuracion add column if not exists notif_tarea_wsp_vencer boolean default true;
+alter table public.configuracion add column if not exists email_empresa text;
+alter table public.configuracion add column if not exists ubicacion_empresa text;
+alter table public.configuracion add column if not exists logo_url text;
+alter table public.configuracion add column if not exists color_marca text;
 
 update public.configuracion set telefono_empresa = '3364 57-8599'
 where id = 1 and (telefono_empresa is null or trim(telefono_empresa) = '');

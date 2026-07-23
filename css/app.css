@@ -1,0 +1,8 @@
+/* CMR — estilos (opcional: un solo include)
+   Preferí enlazar theme/login/layout/components/modules desde index.html
+*/
+@import url('theme.css');
+@import url('login.css');
+@import url('layout.css');
+@import url('components.css');
+@import url('modules.css');

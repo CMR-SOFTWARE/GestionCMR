@@ -23,8 +23,27 @@ const DEFAULT_CONFIG = {
   notif_tarea_al_crear: true,
   notif_tarea_por_vencer: true,
   notif_tarea_wsp_crear: true,
-  notif_tarea_wsp_vencer: true
+  notif_tarea_wsp_vencer: true,
+  email_empresa: 'contacto@cmrsoftwaresolutions.com',
+  ubicacion_empresa: 'San Nicolás de los Arroyos, Buenos Aires, Argentina',
+  logo_url: '',
+  color_marca: '#0a9d8f'
 };
+
+/** Datos de marca para presupuestos / contratos */
+function marcaCMR(){
+  const c = configCMR || DEFAULT_CONFIG;
+  return {
+    empresa: c.empresa_nombre || DEFAULT_CONFIG.empresa_nombre,
+    telefono: c.telefono_empresa || DEFAULT_CONFIG.telefono_empresa,
+    email: c.email_empresa || DEFAULT_CONFIG.email_empresa,
+    ubicacion: c.ubicacion_empresa || DEFAULT_CONFIG.ubicacion_empresa,
+    logoUrl: c.logo_url || '',
+    logoText: 'CM',
+    color: c.color_marca || DEFAULT_CONFIG.color_marca,
+    colorOscuro: '#0d1b2e'
+  };
+}
 
 function aplicarEmailsDesdeConfig(cfg){
   if(!cfg || typeof USUARIOS === 'undefined') return;
@@ -174,6 +193,10 @@ function poblarFormularioInformacion(){
   const setChk = (id, val) => { const el = document.getElementById(id); if(el) el.checked = !!val; };
   set('info-empresa', c.empresa_nombre);
   set('info-tel-empresa', c.telefono_empresa || '3364 57-8599');
+  set('info-email-empresa', c.email_empresa || DEFAULT_CONFIG.email_empresa);
+  set('info-ubicacion', c.ubicacion_empresa || DEFAULT_CONFIG.ubicacion_empresa);
+  set('info-logo-url', c.logo_url || '');
+  set('info-color-marca', c.color_marca || DEFAULT_CONFIG.color_marca);
   set('info-msg-wsp', c.mensaje_wsp_cliente);
   set('info-dias-cliente', c.dias_aviso_cliente ?? 5);
   set('info-email-tomi', c.email_tomi || USUARIOS?.tomi?.email || '');
@@ -197,6 +220,10 @@ async function guardarInformacion(){
     id: 1,
     empresa_nombre: document.getElementById('info-empresa').value.trim() || 'CMR Software Solutions',
     telefono_empresa: document.getElementById('info-tel-empresa').value.trim() || '3364 57-8599',
+    email_empresa: document.getElementById('info-email-empresa')?.value.trim() || DEFAULT_CONFIG.email_empresa,
+    ubicacion_empresa: document.getElementById('info-ubicacion')?.value.trim() || DEFAULT_CONFIG.ubicacion_empresa,
+    logo_url: document.getElementById('info-logo-url')?.value.trim() || null,
+    color_marca: document.getElementById('info-color-marca')?.value.trim() || DEFAULT_CONFIG.color_marca,
     mensaje_wsp_cliente: document.getElementById('info-msg-wsp').value.trim() || DEFAULT_CONFIG.mensaje_wsp_cliente,
     dias_aviso_cliente: parseInt(document.getElementById('info-dias-cliente').value, 10) || 5,
     email_tomi: document.getElementById('info-email-tomi').value.trim() || null,
@@ -398,11 +425,11 @@ async function obtenerTareasParaRecordatorio(){
   const dias = c.dias_aviso_tarea ?? 2;
   let lista = [];
   if(sb){
-    const { data } = await sb.from('tareas').select('*').neq('estado', 'Completada');
-    lista = data || [];
+    const { data } = await sb.from('tareas').select('*');
+    lista = (data || []).filter(t => !(t.estado_final === true || t.estado === 'Completada'));
   }
   return lista.filter(t => {
-    if(t.estado === 'Completada' || !t.fecha_vencimiento) return false;
+    if(t.estado_final === true || t.estado === 'Completada' || !t.fecha_vencimiento) return false;
     const d = diasHasta(t.fecha_vencimiento);
     if(d === null || d < 0 || d > dias) return false;
     return tareaTienePendienteVencer(t);
@@ -547,6 +574,7 @@ async function cargarInformacion(){
   if(!requiereSupabase()) return;
   await cargarConfiguracion();
   poblarFormularioInformacion();
+  if(typeof syncTemaUI === 'function') syncTemaUI();
 }
 
 async function cargarAvisos(){

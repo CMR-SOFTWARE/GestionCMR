@@ -25,6 +25,7 @@ alter table public.tareas add column if not exists asignado_a text;
 alter table public.tareas add column if not exists prioridad text default 'Media';
 alter table public.tareas add column if not exists estado text default 'Pendiente';
 alter table public.tareas add column if not exists fecha_vencimiento date;
+alter table public.tareas add column if not exists fecha_inicio date;
 alter table public.tareas add column if not exists colaborador_1 text;
 alter table public.tareas add column if not exists colaborador_2 text;
 alter table public.tareas add column if not exists created_at timestamptz default now();

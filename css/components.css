@@ -1,0 +1,46 @@
+/* ─── Componentes UI compartidos ─── */
+
+/* ─── Componentes UI compartidos ─── */
+
+.btn-primary{background:linear-gradient(135deg,var(--teal),var(--blue));border:none;color:#fff}
+.btn-primary:hover{opacity:.9;color:#fff;background:linear-gradient(135deg,var(--teal),var(--blue))}
+.btn-ghost-edit{background:none;border:none;color:var(--text3);font-size:14px;padding:3px 8px;height:auto}
+.btn-ghost-edit:hover{color:var(--blue);background:rgba(26,111,196,.08)}
+.pill-vigente{background:rgba(10,157,110,.1);color:#0a7a55;border:1px solid rgba(10,157,110,.2)}
+.pill-alerta{background:rgba(196,122,10,.1);color:#a06010;border:1px solid rgba(196,122,10,.2)}
+.pill-vencido{background:rgba(229,62,62,.08);color:#c53030;border:1px solid rgba(229,62,62,.15)}
+.pill-inactivo{background:rgba(74,85,104,.08);color:#4a5568;border:1px solid rgba(74,85,104,.18)}
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(13,27,46,.6);backdrop-filter:blur(4px);z-index:200;align-items:flex-start;justify-content:center;padding:2rem 1rem;overflow-y:auto}
+.modal-bg.open{display:flex}
+.modal{background:var(--surface);border-radius:18px;width:100%;max-width:520px;padding:1.5rem;margin:auto;box-shadow:var(--shadow);border:1px solid var(--border)}
+.modal-title{font-size:17px;font-weight:700;margin-bottom:1rem}
+.modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border)}
+.cliente-nombre{font-weight:600}
+.cliente-contacto{font-size:12px;color:var(--text3);margin-top:2px}
+.socio-pill{cursor:pointer;transition:opacity .15s}
+.socio-pill:hover{opacity:.75}
+.acciones-cell{display:flex;gap:2px;justify-content:flex-end;align-items:center}
+.chart-wrap{position:relative;height:320px;width:100%}
+.chart-wrap-wide{height:340px;min-width:100%}
+.stats-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+@media(max-width:680px){.stats-grid-2{grid-template-columns:1fr}}
+.pill-prio-alta{background:rgba(229,62,62,.1);color:#c53030;border:1px solid rgba(229,62,62,.2)}
+.pill-prio-media{background:rgba(196,122,10,.1);color:#a06010;border:1px solid rgba(196,122,10,.2)}
+.pill-prio-baja{background:rgba(74,85,104,.1);color:#4a5568;border:1px solid rgba(74,85,104,.18)}
+.pill-est-pendiente{background:rgba(74,85,104,.1);color:#4a5568;border:1px solid rgba(74,85,104,.18)}
+.pill-est-progreso{background:rgba(26,111,196,.1);color:#1a6fc4;border:1px solid rgba(26,111,196,.2)}
+.pill-est-completada{background:rgba(10,157,110,.1);color:#0a7a55;border:1px solid rgba(10,157,110,.2)}
+.pill-estado{cursor:pointer;user-select:none}
+.pill-estado:hover{opacity:.85}
+tr.tarea-mia td{background:rgba(127,119,221,.06)!important}
+tr.tarea-mia td:first-child{border-left:3px solid var(--teal)}
+.tarea-titulo{font-weight:600}
+.tarea-desc{font-size:12px;color:var(--text3);margin-top:2px}
+.form-tarea{grid-template-columns:1.5fr 1fr 1fr 1fr}
+.form-tarea-row2{grid-template-columns:1fr 1fr 1fr 1fr;margin-top:10px}
+@media(max-width:720px){.form-tarea-row2{grid-template-columns:1fr 1fr}}
+textarea.ta-desc{width:100%;min-height:38px;height:38px;border:1.5px solid var(--border);border-radius:9px;background:var(--surface2);color:var(--text);padding:8px 12px;font-size:13px;font-family:inherit;resize:vertical}
+textarea.ta-desc:focus{border-color:var(--teal2);box-shadow:0 0 0 3px rgba(10,157,143,.12);background:var(--surface-focus);outline:none}
+
+/* ─── Kanban Tareas ─── */
+#page-tareas.active{display:flex;flex-direction:column;min-height:calc(100vh - 96px)}
