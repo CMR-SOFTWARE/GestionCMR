@@ -34,11 +34,11 @@ function toggleDocPresupuestoMov(prefix){
 
 async function cargarPresupuestosParaMov(){
   if(!sb || !supabaseConectado) return;
-  const { data, error } = await sb.from('documentos')
-    .select('id, numero, cliente')
-    .eq('tipo', 'presupuesto')
-    .order('created_at', { ascending: false })
-    .limit(100);
+  let q = sb.from('documentos').select('id, numero, cliente, cliente_id').eq('tipo', 'presupuesto').order('created_at', { ascending: false }).limit(100);
+  let { data, error } = await q;
+  if(error && esColumnaFaltante(error, 'cliente_id')){
+    ({ data, error } = await sb.from('documentos').select('id, numero, cliente').eq('tipo', 'presupuesto').order('created_at', { ascending: false }).limit(100));
+  }
   if(error){
     console.warn('[Presupuestos mov]', error);
     return;
@@ -54,6 +54,8 @@ async function cargarPresupuestosParaMov(){
       ).join('');
     if(cur) el.value = cur;
   });
+  poblarSelectClientes('mov-cliente');
+  poblarSelectClientes('em-cliente');
 }
 
 function leerDocumentoIdMov(prefix){
@@ -63,7 +65,29 @@ function leerDocumentoIdMov(prefix){
   return v || null;
 }
 
-async function clienteIdParaMovimiento(descripcion, documentoId){
+function leerClienteIdMov(prefix){
+  const el = document.getElementById(prefix ? prefix + 'cliente' : 'mov-cliente');
+  const v = el?.value || '';
+  return v ? Number(v) : null;
+}
+
+function onDocPresupuestoChange(prefix){
+  const docId = leerDocumentoIdMov(prefix);
+  const sel = document.getElementById(prefix ? prefix + 'cliente' : 'mov-cliente');
+  if(!docId || !sel) return;
+  const p = presupuestosParaMov.find(x => String(x.id) === String(docId));
+  if(!p) return;
+  if(p.cliente_id){
+    sel.value = String(p.cliente_id);
+    return;
+  }
+  if(p.cliente && typeof resolverClienteIdPorNombre === 'function'){
+    resolverClienteIdPorNombre(p.cliente).then(id => { if(id) sel.value = String(id); });
+  }
+}
+
+async function clienteIdParaMovimiento(descripcion, documentoId, explicitId){
+  if(explicitId) return Number(explicitId);
   if(documentoId){
     const { data } = await sb.from('documentos').select('cliente_id,cliente').eq('id', documentoId).maybeSingle();
     if(data?.cliente_id) return data.cliente_id;
@@ -73,6 +97,12 @@ async function clienteIdParaMovimiento(descripcion, documentoId){
   if(typeof resolverClienteIdPorNombre === 'function')
     return await resolverClienteIdPorNombre(descripcion);
   return null;
+}
+
+function nombreClienteDeMov(clienteId){
+  if(!clienteId) return '';
+  const lista = (typeof clientesCompletos !== 'undefined' && clientesCompletos.length) ? clientesCompletos : [];
+  return lista.find(c => Number(c.id) === Number(clienteId))?.nombre || '';
 }
 
 async function cargarDatos(){
@@ -121,7 +151,7 @@ async function agregar(){
   const hoy = new Date().toISOString().slice(0,10);
   const row = { fecha:hoy, tipo, descripcion:desc, categoria:cat, tipo_pago: tipoPago, monto, socio:sesion };
   if(documento_id) row.documento_id = documento_id;
-  const clienteId = await clienteIdParaMovimiento(desc, documento_id);
+  const clienteId = await clienteIdParaMovimiento(desc, documento_id, leerClienteIdMov(''));
   if(clienteId) row.cliente_id = clienteId;
 
   let { error } = await sb.from('movimientos').insert(row);
@@ -135,6 +165,8 @@ async function agregar(){
     document.getElementById('monto').value = '';
     document.getElementById('tipo-pago').value = 'pago_total';
     document.getElementById('doc-presupuesto').value = '';
+    const mc = document.getElementById('mov-cliente');
+    if(mc) mc.value = '';
     toggleDocPresupuestoMov('');
     toast('Movimiento guardado');
     await Promise.all([cargarDatos(), poblarMeses()]);
@@ -198,7 +230,7 @@ function renderTabla(datos){
     return `<tr>
       <td style="font-size:12px;color:#888">${r.fecha}</td>
       <td><span class="pill ${r.tipo==='ingreso'?'pill-ing':'pill-gas'}">${r.tipo==='ingreso'?'Ingreso':'Gasto'}</span></td>
-      <td>${esc(r.descripcion)}</td>
+      <td>${esc(r.descripcion)}${nombreClienteDeMov(r.cliente_id) ? `<div class="cliente-contacto">${esc(nombreClienteDeMov(r.cliente_id))}</div>` : ''}</td>
       <td class="hide-mob" style="font-size:12px;color:#888">${esc(r.categoria)}</td>
       <td class="hide-mob">${badgeTipoPago(r.tipo_pago)}</td>
       <td class="hide-mob">${socioPill}</td>
@@ -217,6 +249,7 @@ async function editarMovimiento(id){
   const mov = todosLosDatos.find(r => r.id === id);
   if(!mov){ toast('No se encontró el movimiento'); return; }
   await cargarPresupuestosParaMov();
+  poblarSelectClientes('em-cliente');
   editandoMovId = id;
   document.getElementById('em-tipo').value = mov.tipo;
   document.getElementById('em-monto').value = mov.monto;
@@ -226,6 +259,8 @@ async function editarMovimiento(id){
   document.getElementById('em-fecha').value = mov.fecha;
   document.getElementById('em-socio').value = mov.socio;
   document.getElementById('em-doc-presupuesto').value = mov.documento_id || '';
+  const emCli = document.getElementById('em-cliente');
+  if(emCli) emCli.value = mov.cliente_id ? String(mov.cliente_id) : '';
   toggleDocPresupuestoMov('em-');
   document.getElementById('modal-mov').classList.add('open');
 }
@@ -252,8 +287,9 @@ async function guardarMovimiento(){
   const btn = document.getElementById('btn-guardar-mov');
   btn.disabled = true; btn.textContent = 'Guardando…';
   const patch = { tipo, monto, descripcion: desc, categoria: cat, tipo_pago, fecha, socio, documento_id };
-  const clienteId = await clienteIdParaMovimiento(desc, documento_id);
+  const clienteId = await clienteIdParaMovimiento(desc, documento_id, leerClienteIdMov('em-'));
   if(clienteId) patch.cliente_id = clienteId;
+  else patch.cliente_id = null;
   let { error } = await sb.from('movimientos').update(patch).eq('id', editandoMovId);
   if(error && esColumnaFaltante(error, 'cliente_id')){
     delete patch.cliente_id;

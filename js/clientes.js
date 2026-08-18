@@ -223,6 +223,8 @@ async function cargarClientes(){
   actualizarBannerRenovaciones(clientesCompletos);
   renderTablaClientes(lista);
   poblarSelectClientes('proy-cliente');
+  poblarSelectClientes('mov-cliente');
+  poblarSelectClientes('em-cliente');
   if(typeof verificarRecordatoriosPendientes === 'function') verificarRecordatoriosPendientes();
 }
 

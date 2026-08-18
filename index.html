@@ -80,6 +80,16 @@
   <!-- ═══ Página: Movimientos ═══ -->
   <div id="page-movimientos" class="page active">
   <div class="container">
+    <div class="panel" id="resumen-diario-panel">
+      <div class="panel-header">
+        <div class="panel-title">Resumen del día</div>
+        <button id="btn-actualizar-resumen" onclick="cargarResumenDiario(true)" style="height:32px;font-size:12px">↻ Actualizar</button>
+      </div>
+      <div class="ia-box" style="display:block">
+        <p class="ia-loading" id="resumen-diario-text">Generando resumen…</p>
+      </div>
+    </div>
+
     <div class="stat-grid">
       <div class="stat-card">
         <div class="stat-icon stat-icon-teal">
@@ -126,13 +136,18 @@
             <option value="otro">Otro</option>
           </select>
         </div>
+      </div>
+      <div class="form-grid form-2" style="margin-top:10px">
+        <div class="field"><label>Cliente</label>
+          <select id="mov-cliente"><option value="">— Sin cliente —</option></select>
+        </div>
         <div class="field"><label>Monto ($)</label>
           <input id="monto" type="number" placeholder="0.00" min="0" step="0.01">
         </div>
       </div>
       <div id="doc-presupuesto-wrap" class="field" style="display:none;margin-top:8px;max-width:420px">
         <label>Vincular a presupuesto (opcional)</label>
-        <select id="doc-presupuesto"><option value="">— Sin vínculo —</option></select>
+        <select id="doc-presupuesto" onchange="onDocPresupuestoChange('')"><option value="">— Sin vínculo —</option></select>
       </div>
       <div style="margin-top:12px;display:flex;justify-content:flex-end">
         <button class="btn-success" id="btn-agregar" onclick="agregar()">+ Agregar movimiento</button>
@@ -610,9 +625,12 @@
       <div class="field"><label>Fecha</label>
         <input id="em-fecha" type="date">
       </div>
-      <div class="field" id="em-doc-wrap" style="display:none"><label>Presupuesto vinculado</label>
-        <select id="em-doc-presupuesto"><option value="">— Sin vínculo —</option></select>
+      <div class="field"><label>Cliente</label>
+        <select id="em-cliente"><option value="">— Sin cliente —</option></select>
       </div>
+    </div>
+    <div class="field" id="em-doc-wrap" style="display:none;margin-bottom:10px"><label>Presupuesto vinculado</label>
+      <select id="em-doc-presupuesto" onchange="onDocPresupuestoChange('em-')"><option value="">— Sin vínculo —</option></select>
     </div>
     <div class="field" style="margin-bottom:10px"><label>Registrado por (socio)</label>
       <select id="em-socio">
@@ -752,6 +770,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <!-- App (orden: core → módulos de negocio) -->
 <script src="js/core.js"></script>
+<script src="js/resumen-diario.js"></script>
 <script src="js/movimientos.js"></script>
 <script src="js/clientes.js"></script>
 <script src="js/estadisticas.js"></script>
