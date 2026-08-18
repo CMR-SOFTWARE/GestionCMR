@@ -1027,7 +1027,7 @@ function buscarTareasDebounce(){ clearTimeout(buscarTareasTimer); buscarTareasTi
 document.getElementById('modal-mov').addEventListener('click', e => {
   if(e.target.id === 'modal-mov') cerrarModalMov();
 });
-document.getElementById('modal-tarea').addEventListener('click', e => {
+document.getElementById('modal-tarea')?.addEventListener('click', e => {
   if(e.target.id === 'modal-tarea') cerrarModalTarea();
 });
 document.getElementById('modal-estados')?.addEventListener('click', e => {
@@ -1037,6 +1037,6 @@ document.addEventListener('click', e => {
   const pop = document.getElementById('cal-popover');
   if(pop?.classList.contains('open') && !pop.contains(e.target) && !e.target.closest('.cal-more')) cerrarCalPopover();
 });
-document.getElementById('modal-cliente').addEventListener('click', e => {
+document.getElementById('modal-cliente')?.addEventListener('click', e => {
   if(e.target.id === 'modal-cliente') cerrarModalCliente();
 });

@@ -316,10 +316,16 @@ async function guardarClienteEditado(){
 
   const periodicidad = document.getElementById('ec-periodicidad')?.value || 'mensual';
   const mantenimiento_activo = document.getElementById('ec-mant-activo')?.value !== 'false';
-  const { error } = await sb.from('clientes').update({
+  const payload = {
     nombre, plan, monto_plan, fecha_vencimiento, contacto, notas, activo, periodicidad, mantenimiento_activo,
     updated_at: new Date().toISOString()
-  }).eq('id', editandoClienteId);
+  };
+  let { error } = await sb.from('clientes').update(payload).eq('id', editandoClienteId);
+  if(error && /mantenimiento_activo|periodicidad|check/i.test(error.message || '')){
+    delete payload.mantenimiento_activo;
+    if(periodicidad === 'unico') delete payload.periodicidad;
+    ({ error } = await sb.from('clientes').update(payload).eq('id', editandoClienteId));
+  }
 
   if(error){ toast(supabaseErrMsg(error)); return; }
   toast('Cliente actualizado');
