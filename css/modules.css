@@ -325,6 +325,15 @@ tbody tr:hover td{background:var(--surface2)}
 .btn-doc-add{margin-top:8px;font-size:12px;height:34px;padding:0 12px;border-color:rgba(10,157,143,.3);color:var(--teal);background:rgba(10,157,143,.06)}
 .btn-doc-add:hover{background:rgba(10,157,143,.12)}
 .pill-tipo-pago{font-size:10px;padding:2px 8px;white-space:nowrap}
+.panel-dev-cli{margin-bottom:1.5rem}
+.panel-dev-cli .panel-sub{font-size:12px;color:var(--text3);margin-top:.25rem;max-width:520px}
+.dev-cli-count-wrap{text-align:right;flex-shrink:0}
+.dev-cli-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);margin-bottom:8px}
+.dev-cli-name{font-weight:600;font-size:14px}
+.dev-cli-meta{font-size:11px;color:var(--text3);margin-top:2px}
+.dev-cli-monto{font-weight:700;font-size:15px;color:var(--teal);white-space:nowrap}
+.dev-cli-total{display:flex;justify-content:space-between;align-items:center;padding:10px 14px 0;margin-top:4px;border-top:1px dashed var(--border);font-size:13px;color:var(--text2)}
+.dev-cli-empty{font-size:13px;color:var(--text3);padding:.5rem 0}
 @media(max-width:680px){
   .form-grid,.form-3,.form-5,.form-6,.form-tarea{grid-template-columns:1fr}
   .stat-grid,.stat-grid-4{grid-template-columns:1fr 1fr}

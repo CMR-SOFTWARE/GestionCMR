@@ -8,6 +8,87 @@ function labelMes(ym){ const m=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago',
 function ultimosNMeses(n){ const r=[]; const h=new Date(); for(let i=n-1;i>=0;i--){ const x=new Date(h.getFullYear(),h.getMonth()-i,1); r.push(mesKey(x)); } return r; }
 function ultimos6Meses(){ return ultimosNMeses(6); }
 
+function esClienteEnDesarrollo(c){
+  return c.activo !== false && !mantenimientoActivo(c);
+}
+
+function nombreCoincideMovimiento(nombreCliente, descripcion){
+  if(!nombreCliente || !descripcion) return false;
+  const n = nombreCliente.toLowerCase();
+  const d = descripcion.toLowerCase();
+  if(d.includes(n)) return true;
+  const partes = n.match(/\([^)]+\)|[a-záéíóúñ0-9]{4,}/gi) || [];
+  return partes.some(p => {
+    const clean = p.replace(/[()]/g, '').trim();
+    return clean.length >= 4 && d.includes(clean);
+  });
+}
+
+function docIdsPorCliente(documentos, nombreCliente){
+  return new Set(
+    (documentos || [])
+      .filter(d => d.cliente === nombreCliente)
+      .map(d => d.id)
+  );
+}
+
+function cobradoProyectoCliente(cliente, movimientos, documentos){
+  const docIds = docIdsPorCliente(documentos, cliente.nombre);
+  let total = 0;
+  (movimientos || []).forEach(m => {
+    if(m.tipo !== 'ingreso') return;
+    const porDoc = m.documento_id && docIds.has(m.documento_id);
+    const porDesc = (m.categoria === 'Proyecto' || m.tipo_pago === 'seña' || m.tipo_pago === 'pago_parcial')
+      && nombreCoincideMovimiento(cliente.nombre, m.descripcion);
+    if(porDoc || porDesc) total += Number(m.monto) || 0;
+  });
+  return total;
+}
+
+function listarClientesEnDesarrollo(clientes, movimientos, documentos){
+  return (clientes || [])
+    .filter(esClienteEnDesarrollo)
+    .map(c => ({
+      id: c.id,
+      nombre: c.nombre,
+      label: nombreCortoCliente(c.nombre),
+      cobrado: cobradoProyectoCliente(c, movimientos, documentos)
+    }))
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+}
+
+function nombreCortoCliente(nombre){
+  const m = String(nombre || '').match(/\(([^)]+)\)/);
+  if(m) return `${nombre.replace(/\s*\([^)]+\)/, '').trim()} — ${m[1]}`;
+  return nombre;
+}
+
+function renderClientesEnDesarrollo(lista){
+  const resumen = document.getElementById('st-desarrollo-count');
+  const detalle = document.getElementById('lista-clientes-desarrollo');
+  if(!resumen || !detalle) return;
+
+  const n = lista.length;
+  resumen.textContent = n === 1 ? '1 cliente' : `${n} clientes`;
+  resumen.className = 'stat-val ' + (n ? 'val-amber' : 'val-neutral');
+
+  if(!n){
+    detalle.innerHTML = '<p class="dev-cli-empty">No hay clientes en desarrollo. Desmarcá «Mantenimiento recurrente» al dar de alta un proyecto.</p>';
+    return;
+  }
+
+  const totalCobrado = lista.reduce((s, c) => s + c.cobrado, 0);
+  detalle.innerHTML = lista.map(c => `
+    <div class="dev-cli-row">
+      <div>
+        <div class="dev-cli-name">${esc(c.label)}</div>
+        <div class="dev-cli-meta">Cobrado a cuenta</div>
+      </div>
+      <div class="dev-cli-monto">${fmt(c.cobrado)}</div>
+    </div>
+  `).join('') + (n > 1 ? `<div class="dev-cli-total"><span>Total cobrado</span><strong>${fmt(totalCobrado)}</strong></div>` : '');
+}
+
 function esIngresoMantenimiento(r){
   return r.tipo === 'ingreso' && (r.categoria || '') === 'Mantenimiento';
 }
@@ -84,12 +165,22 @@ async function cargarEstadisticas(){
   const meses = ultimos6Meses();
   const mesesHistCli = ultimosNMeses(12);
   const desde = mesesHistCli[0]+'-01';
-  const [{ data: movs, error: e1 }, { data: clis, error: e2 }] = await Promise.all([
+  const [{ data: movs, error: e1 }, { data: clis, error: e2 }, { data: movsProy, error: e3 }] = await Promise.all([
     sb.from('movimientos').select('*').gte('fecha', desde),
-    sb.from('clientes').select('*')
+    sb.from('clientes').select('*'),
+    sb.from('movimientos').select('*').eq('tipo', 'ingreso').or('categoria.eq.Proyecto,tipo_pago.eq.seña,tipo_pago.eq.pago_parcial')
   ]);
   if(e1){ toast(supabaseErrMsg(e1)); return; }
+  if(e3) console.warn('Movimientos de proyecto:', e3);
   const mov = movs || [];
+  const movProyecto = movsProy || mov.filter(r => r.tipo === 'ingreso' && (r.categoria === 'Proyecto' || r.tipo_pago === 'seña' || r.tipo_pago === 'pago_parcial'));
+  const clisLista = clis || [];
+  const devNombres = clisLista.filter(esClienteEnDesarrollo).map(c => c.nombre);
+  let documentos = [];
+  if(devNombres.length){
+    const { data: docs } = await sb.from('documentos').select('id,cliente').in('cliente', devNombres);
+    documentos = docs || [];
+  }
   const mk = mesKey(new Date());
   let ingMes=0, gasMes=0;
   const porMes = {}; meses.forEach(m => { porMes[m]={ing:0,gas:0}; });
@@ -106,12 +197,13 @@ async function cargarEstadisticas(){
   elBal.textContent = fmt(bal);
   elBal.className = 'stat-val '+(bal>0?'val-green':bal<0?'val-red':'val-neutral');
   let vig=0;
-  (clis||[]).forEach(c => { if(estadoCliente(c).key==='vigente') vig++; });
+  clisLista.forEach(c => { if(estadoCliente(c).key==='vigente') vig++; });
   document.getElementById('st-cli-vig').textContent = vig;
+  renderClientesEnDesarrollo(listarClientesEnDesarrollo(clisLista, movProyecto, documentos));
   renderChartMeses(meses, porMes);
-  const mesesCli = mesesParaGraficoClientes(clis);
+  const mesesCli = mesesParaGraficoClientes(clisLista);
   const porMesCli = contarCobrosMantenimientoPorMes(mov, mesesCli);
-  const totalesCli = clientesTotalesPorMes(clis, mesesCli);
+  const totalesCli = clientesTotalesPorMes(clisLista, mesesCli);
   renderChartClientesMes(mesesCli, porMesCli, totalesCli);
   renderTablaCatGas(mov);
   renderTablaSocioIng(mov);
