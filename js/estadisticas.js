@@ -8,20 +8,17 @@ function labelMes(ym){ const m=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago',
 function ultimosNMeses(n){ const r=[]; const h=new Date(); for(let i=n-1;i>=0;i--){ const x=new Date(h.getFullYear(),h.getMonth()-i,1); r.push(mesKey(x)); } return r; }
 function ultimos6Meses(){ return ultimosNMeses(6); }
 
-function mesConfirmacionCliente(c){
-  if(!pagoConfirmado(c)) return null;
-  const f = c.fecha_confirmacion_pago;
-  if(f) return String(f).slice(0, 7);
-  return null;
+function esIngresoMantenimiento(r){
+  return r.tipo === 'ingreso' && (r.categoria || '') === 'Mantenimiento';
 }
 
-function contarClientesNuevosPorMes(clientes, meses){
+function contarCobrosMantenimientoPorMes(movimientos, meses){
   const porMes = {};
   meses.forEach(m => { porMes[m] = 0; });
-  (clientes||[]).forEach(c => {
-    if(!mantenimientoActivo(c)) return;
-    const m = mesConfirmacionCliente(c);
-    if(m && porMes[m] !== undefined) porMes[m]++;
+  (movimientos||[]).forEach(r => {
+    if(!esIngresoMantenimiento(r)) return;
+    const m = String(r.fecha || '').slice(0, 7);
+    if(porMes[m] !== undefined) porMes[m]++;
   });
   return porMes;
 }
@@ -85,7 +82,8 @@ function mesesParaGraficoClientes(clientes){
 async function cargarEstadisticas(){
   if(!sb || !requiereSupabase()) return;
   const meses = ultimos6Meses();
-  const desde = meses[0]+'-01';
+  const mesesHistCli = ultimosNMeses(12);
+  const desde = mesesHistCli[0]+'-01';
   const [{ data: movs, error: e1 }, { data: clis, error: e2 }] = await Promise.all([
     sb.from('movimientos').select('*').gte('fecha', desde),
     sb.from('clientes').select('*')
@@ -112,7 +110,7 @@ async function cargarEstadisticas(){
   document.getElementById('st-cli-vig').textContent = vig;
   renderChartMeses(meses, porMes);
   const mesesCli = mesesParaGraficoClientes(clis);
-  const porMesCli = contarClientesNuevosPorMes(clis, mesesCli);
+  const porMesCli = contarCobrosMantenimientoPorMes(mov, mesesCli);
   const totalesCli = clientesTotalesPorMes(clis, mesesCli);
   renderChartClientesMes(mesesCli, porMesCli, totalesCli);
   renderTablaCatGas(mov);
@@ -134,7 +132,7 @@ function renderChartClientesMes(meses, porMes, totales){
       labels: meses.map(labelMes),
       datasets: [
         {
-          label: 'Pago confirmado (ese mes)',
+          label: 'Cobros de mantenimiento (ese mes)',
           data: datosConf,
           backgroundColor: 'rgba(26,111,196,0.82)',
           borderRadius: 6
