@@ -169,6 +169,7 @@ function toggleFormProyecto(abrir){
     document.getElementById('proy-color').value = PROYECTO_COLORES[0];
     document.getElementById('proy-icono').value = 'folder';
     renderProyColorPicker();
+    poblarSelectClientes('proy-cliente');
     document.getElementById('proy-nombre')?.focus();
   }
 }
@@ -188,10 +189,17 @@ async function crearProyecto(){
   const descripcion = document.getElementById('proy-desc').value.trim() || null;
   const color = document.getElementById('proy-color').value || PROYECTO_COLORES[0];
   const icono = document.getElementById('proy-icono').value || 'folder';
+  const cliente_id = document.getElementById('proy-cliente')?.value || null;
   if(!nombre){ toast('Ingresá el nombre del proyecto'); return; }
   const btn = document.getElementById('btn-proy-add');
   if(btn){ btn.disabled = true; btn.textContent = 'Creando…'; }
-  const { data: proy, error } = await sb.from('proyectos').insert({ nombre, descripcion, color, icono }).select().single();
+  const payload = { nombre, descripcion, color, icono };
+  if(cliente_id) payload.cliente_id = Number(cliente_id);
+  let { data: proy, error } = await sb.from('proyectos').insert(payload).select().single();
+  if(error && esColumnaFaltante(error, 'cliente_id')){
+    delete payload.cliente_id;
+    ({ data: proy, error } = await sb.from('proyectos').insert(payload).select().single());
+  }
   if(error){
     toast(supabaseErrMsg(error));
   } else {

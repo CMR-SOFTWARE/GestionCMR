@@ -254,6 +254,7 @@
         <table><thead><tr><th>Cliente</th><th>Plan</th><th class="hide-mob" style="text-align:right">Monto</th><th>Vencimiento</th><th>Estado</th><th style="width:72px"></th></tr></thead>
         <tbody id="tabla-clientes"><tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--text3)">Cargando…</td></tr></tbody></table>
       </div>
+      <p class="info-hint" style="margin-top:10px">Clic en una fila para abrir la ficha (cuenta corriente, documentos y pagos). El lápiz edita los datos.</p>
       <div id="empty-clientes" class="empty-state" style="display:none"><div class="empty-state-icon">👥</div>Sin clientes. Agregá el primero arriba.</div>
     </div>
   </div>
@@ -310,6 +311,9 @@
           <div class="field"><label>Ícono</label>
             <select id="proy-icono"><option value="folder">Carpeta</option><option value="star">Estrella</option><option value="bolt">Rayo</option><option value="target">Objetivo</option></select>
           </div>
+        </div>
+        <div class="field" style="margin-top:10px"><label>Cliente (opcional)</label>
+          <select id="proy-cliente"><option value="">— Sin cliente —</option></select>
         </div>
         <div class="field" style="margin-top:10px"><label>Descripción (opcional)</label><input id="proy-desc" type="text" placeholder="Breve descripción"></div>
         <div class="field" style="margin-top:10px"><label>Color</label>
@@ -683,7 +687,24 @@
     </div>
     <div class="field" style="margin-bottom:10px"><label>Contacto</label><input id="ec-contacto" type="text"></div>
     <div class="field"><label>Notas</label><input id="ec-notas" type="text"></div>
-    <div class="modal-footer"><button onclick="cerrarModalCliente()">Cancelar</button><button class="btn-primary" onclick="guardarClienteEditado()">Guardar</button></div>
+    <div class="modal-footer"><button type="button" onclick="cerrarModalCliente()">Cancelar</button><button type="button" class="btn-primary" onclick="guardarClienteEditado()">Guardar</button></div>
+  </div>
+</div>
+
+<div class="modal-bg" id="modal-ficha-cliente">
+  <div class="modal modal-ficha">
+    <div class="ficha-head">
+      <div>
+        <div class="modal-title" id="ficha-nombre" style="margin-bottom:4px">Cliente</div>
+        <div class="ficha-meta" id="ficha-meta"></div>
+      </div>
+      <span class="pill" id="ficha-estado-pill"></span>
+    </div>
+    <div id="ficha-body"><p class="info-hint">Cargando…</p></div>
+    <div class="modal-footer">
+      <button type="button" onclick="cerrarFichaCliente()">Cerrar</button>
+      <button type="button" class="btn-primary" onclick="fichaAbrirEditar()">Editar datos</button>
+    </div>
   </div>
 </div>
 

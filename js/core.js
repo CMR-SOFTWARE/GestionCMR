@@ -168,6 +168,30 @@ function showPage(id, tab){
 // ─── toast ───────────────────────────────
 function toast(msg){ const el=document.getElementById('toast'); el.textContent=msg; el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),2800); }
 
+function esColumnaFaltante(error, col){
+  const m = `${error?.message || ''} ${error?.details || ''} ${error?.hint || ''}`;
+  return new RegExp(col, 'i').test(m) || /schema cache|could not find/i.test(m);
+}
+
+async function resolverClienteIdPorNombre(texto){
+  if(!texto || !sb) return null;
+  const t = String(texto).toLowerCase();
+  let lista = (typeof clientesCompletos !== 'undefined' && clientesCompletos.length) ? clientesCompletos : null;
+  if(!lista){
+    const { data } = await sb.from('clientes').select('id,nombre');
+    lista = data || [];
+  }
+  const exact = lista.find(c => c.nombre.toLowerCase() === t);
+  if(exact) return exact.id;
+  const hit = lista.find(c => {
+    const n = c.nombre.toLowerCase();
+    if(t.includes(n) || n.includes(t)) return true;
+    const tokens = n.match(/[a-záéíóúñ0-9]{4,}/gi) || [];
+    return tokens.some(tok => t.includes(tok.toLowerCase()));
+  });
+  return hit ? hit.id : null;
+}
+
 function getTema(){
   return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
 }

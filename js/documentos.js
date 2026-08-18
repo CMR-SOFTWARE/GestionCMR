@@ -845,12 +845,21 @@ async function guardarDocumento(){
   };
   if(!editandoDocumentoId) row.created_by = nombreSocioDoc();
   if(archivo_nombre != null){ row.archivo_nombre = archivo_nombre; row.archivo_mime = archivo_mime; }
+  if(typeof resolverClienteIdPorNombre === 'function'){
+    const cid = await resolverClienteIdPorNombre(cliente);
+    if(cid) row.cliente_id = cid;
+  }
 
   let error;
   if(editandoDocumentoId){
     ({ error } = await sb.from('documentos').update(row).eq('id', editandoDocumentoId));
   } else {
     ({ error } = await sb.from('documentos').insert(row));
+  }
+  if(error && esColumnaFaltante(error, 'cliente_id')){
+    delete row.cliente_id;
+    if(editandoDocumentoId) ({ error } = await sb.from('documentos').update(row).eq('id', editandoDocumentoId));
+    else ({ error } = await sb.from('documentos').insert(row));
   }
 
   if(btn){ btn.disabled = false; btn.textContent = 'Guardar'; }
@@ -886,6 +895,7 @@ async function duplicarDocumento(id){
     contenido: d.contenido || {},
     created_by: nombreSocioDoc()
   };
+  if(d.cliente_id) row.cliente_id = d.cliente_id;
   const { error: e2 } = await sb.from('documentos').insert(row);
   if(e2){ toast(supabaseErrMsg(e2)); return; }
   toast('Duplicado como ' + numero);
@@ -941,7 +951,15 @@ async function guardarSubidaDocumento(){
     contenido: { archivoData: dataUrl },
     created_by: nombreSocioDoc()
   };
-  const { error } = await sb.from('documentos').insert(row);
+  if(typeof resolverClienteIdPorNombre === 'function'){
+    const cid = await resolverClienteIdPorNombre(cliente);
+    if(cid) row.cliente_id = cid;
+  }
+  let { error } = await sb.from('documentos').insert(row);
+  if(error && esColumnaFaltante(error, 'cliente_id')){
+    delete row.cliente_id;
+    ({ error } = await sb.from('documentos').insert(row));
+  }
   if(error){ toast(supabaseErrMsg(error)); return; }
   toast('Archivo subido');
   cerrarSubirDocumento();

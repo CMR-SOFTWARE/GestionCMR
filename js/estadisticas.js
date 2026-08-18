@@ -37,6 +37,10 @@ function cobradoProyectoCliente(cliente, movimientos, documentos){
   let total = 0;
   (movimientos || []).forEach(m => {
     if(m.tipo !== 'ingreso') return;
+    if(m.cliente_id != null){
+      if(m.cliente_id === cliente.id) total += Number(m.monto) || 0;
+      return;
+    }
     const porDoc = m.documento_id && docIds.has(m.documento_id);
     const porDesc = (m.categoria === 'Proyecto' || m.tipo_pago === 'seña' || m.tipo_pago === 'pago_parcial')
       && nombreCoincideMovimiento(cliente.nombre, m.descripcion);

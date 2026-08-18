@@ -26,6 +26,13 @@ alter table public.documentos add column if not exists archivo_nombre text;
 alter table public.documentos add column if not exists archivo_mime text;
 alter table public.documentos add column if not exists updated_at timestamptz default now();
 
+do $$
+begin
+  if to_regclass('public.clientes') is not null then
+    alter table public.documentos add column if not exists cliente_id bigint references public.clientes(id) on delete set null;
+  end if;
+end $$;
+
 update public.documentos set origen = 'generado' where origen is null;
 alter table public.documentos alter column origen set default 'generado';
 

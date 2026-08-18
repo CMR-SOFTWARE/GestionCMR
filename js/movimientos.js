@@ -63,6 +63,18 @@ function leerDocumentoIdMov(prefix){
   return v || null;
 }
 
+async function clienteIdParaMovimiento(descripcion, documentoId){
+  if(documentoId){
+    const { data } = await sb.from('documentos').select('cliente_id,cliente').eq('id', documentoId).maybeSingle();
+    if(data?.cliente_id) return data.cliente_id;
+    if(data?.cliente && typeof resolverClienteIdPorNombre === 'function')
+      return await resolverClienteIdPorNombre(data.cliente);
+  }
+  if(typeof resolverClienteIdPorNombre === 'function')
+    return await resolverClienteIdPorNombre(descripcion);
+  return null;
+}
+
 async function cargarDatos(){
   if(!sb || !requiereSupabase()) return;
   setSyncStatus(true, 'Sincronizando…');
@@ -109,8 +121,14 @@ async function agregar(){
   const hoy = new Date().toISOString().slice(0,10);
   const row = { fecha:hoy, tipo, descripcion:desc, categoria:cat, tipo_pago: tipoPago, monto, socio:sesion };
   if(documento_id) row.documento_id = documento_id;
+  const clienteId = await clienteIdParaMovimiento(desc, documento_id);
+  if(clienteId) row.cliente_id = clienteId;
 
-  const { error } = await sb.from('movimientos').insert(row);
+  let { error } = await sb.from('movimientos').insert(row);
+  if(error && esColumnaFaltante(error, 'cliente_id')){
+    delete row.cliente_id;
+    ({ error } = await sb.from('movimientos').insert(row));
+  }
   if(error){ toast(supabaseErrMsg(error)); console.error('[Supabase]', error); }
   else{
     document.getElementById('desc').value = '';
@@ -233,9 +251,14 @@ async function guardarMovimiento(){
 
   const btn = document.getElementById('btn-guardar-mov');
   btn.disabled = true; btn.textContent = 'Guardando…';
-  const { error } = await sb.from('movimientos').update({
-    tipo, monto, descripcion: desc, categoria: cat, tipo_pago, fecha, socio, documento_id
-  }).eq('id', editandoMovId);
+  const patch = { tipo, monto, descripcion: desc, categoria: cat, tipo_pago, fecha, socio, documento_id };
+  const clienteId = await clienteIdParaMovimiento(desc, documento_id);
+  if(clienteId) patch.cliente_id = clienteId;
+  let { error } = await sb.from('movimientos').update(patch).eq('id', editandoMovId);
+  if(error && esColumnaFaltante(error, 'cliente_id')){
+    delete patch.cliente_id;
+    ({ error } = await sb.from('movimientos').update(patch).eq('id', editandoMovId));
+  }
   if(error){ toast(supabaseErrMsg(error)); console.error(error); }
   else{
     toast('Movimiento actualizado');

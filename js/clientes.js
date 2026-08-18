@@ -142,9 +142,14 @@ async function confirmarRenovacionCliente(id){
       : `¿Confirmar pago de ${fmt(monto)} y extender vencimiento al ${nuevaFecha}?`);
   if(!confirm(msgConfirm)) return;
 
-  const { error: eMov } = await sb.from('movimientos').insert({
-    fecha: hoy, tipo: 'ingreso', descripcion: desc, categoria: catMov, tipo_pago: tipoPagoMov, monto, socio: sesion
-  });
+  const movRow = {
+    fecha: hoy, tipo: 'ingreso', descripcion: desc, categoria: catMov, tipo_pago: tipoPagoMov, monto, socio: sesion, cliente_id: c.id
+  };
+  let { error: eMov } = await sb.from('movimientos').insert(movRow);
+  if(eMov && esColumnaFaltante(eMov, 'cliente_id')){
+    delete movRow.cliente_id;
+    ({ error: eMov } = await sb.from('movimientos').insert(movRow));
+  }
   if(eMov){ toast(supabaseErrMsg(eMov)); return; }
 
   const upd = {
@@ -217,6 +222,7 @@ async function cargarClientes(){
   renderPanelRenovaciones(clientesCompletos);
   actualizarBannerRenovaciones(clientesCompletos);
   renderTablaClientes(lista);
+  poblarSelectClientes('proy-cliente');
   if(typeof verificarRecordatoriosPendientes === 'function') verificarRecordatoriosPendientes();
 }
 
@@ -232,15 +238,15 @@ function renderTablaClientes(lista){
   tbody.innerHTML = lista.map(c => {
     const e = estadoCliente(c);
     const contacto = c.contacto ? `<div class="cliente-contacto">${esc(c.contacto)}</div>` : '';
-    return `<tr>
+    return `<tr class="cliente-row" onclick="onFilaClienteClick(event,${c.id})">
       <td><div class="cliente-nombre">${esc(c.nombre)}</div>${contacto}</td>
       <td>${esc(c.plan)}</td>
       <td class="hide-mob" style="text-align:right;font-weight:600">${fmt(c.monto_plan)}</td>
       <td style="font-size:12px">${c.fecha_vencimiento}</td>
       <td><span class="pill ${e.cls}">${e.label}</span></td>
       <td>
-        <button class="btn-ghost-edit" onclick="abrirEditarCliente(${c.id})" title="Editar">✎</button>
-        <button class="btn-ghost-danger" onclick="eliminarCliente(${c.id})" title="Eliminar">×</button>
+        <button type="button" class="btn-ghost-edit" onclick="event.stopPropagation();abrirEditarCliente(${c.id})" title="Editar">✎</button>
+        <button type="button" class="btn-ghost-danger" onclick="event.stopPropagation();eliminarCliente(${c.id})" title="Eliminar">×</button>
       </td>
     </tr>`;
   }).join('');
@@ -348,3 +354,241 @@ function buscarClientesDebounce(){
   clearTimeout(buscarClientesTimer);
   buscarClientesTimer = setTimeout(cargarClientes, 350);
 }
+
+let fichaClienteId = null;
+
+function onFilaClienteClick(ev, id){
+  if(ev.target.closest('button')) return;
+  abrirFichaCliente(id);
+}
+
+function labelEstadoFicha(c){
+  if(c.activo === false) return { label:'Inactivo', cls:'pill-inactivo' };
+  if(!mantenimientoActivo(c)) return { label:'En desarrollo', cls:'pill-est-progreso' };
+  return { label:'Mantenimiento activo', cls:'pill-vigente' };
+}
+
+function fmtUsdFicha(n){
+  return 'USD ' + Number(n || 0).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
+function totalPresupuestadoUsd(docs){
+  let usd = 0;
+  (docs || []).filter(d => d.tipo === 'presupuesto').forEach(d => {
+    const c = d.contenido || {};
+    if(c.total_usd != null && c.total_usd !== '') usd += Number(c.total_usd) || 0;
+    else if(Array.isArray(c.modulos) && c.modulos.length)
+      usd += c.modulos.reduce((s, m) => s + (Number(m.precio_usd || m.precio) || 0), 0);
+    else if(Array.isArray(c.items) && c.items.length)
+      usd += c.items.reduce((s, m) => s + (Number(m.precio) || 0), 0);
+    else usd += Number(c.precioTotal) || 0;
+  });
+  return usd;
+}
+
+function htmlModulosPresupuesto(docs){
+  const items = [];
+  (docs || []).filter(d => d.tipo === 'presupuesto').forEach(d => {
+    const c = d.contenido || {};
+    const mods = Array.isArray(c.modulos) && c.modulos.length ? c.modulos : (c.items || []);
+    mods.forEach(m => {
+      const nom = m.nombre || 'Módulo';
+      const est = m.estado ? ` · ${m.estado.replace(/_/g, ' ')}` : '';
+      const prec = m.precio_usd != null ? m.precio_usd : m.precio;
+      items.push(`${esc(nom)} (${fmtUsdFicha(prec)}${esc(est)})`);
+    });
+  });
+  if(!items.length) return '';
+  return `<ul class="ficha-modulos">${items.map(t => `<li>${t}</li>`).join('')}</ul>`;
+}
+
+async function queryPorCliente(tabla, cliente, extra){
+  const cols = extra?.select || '*';
+  let r = await sb.from(tabla).select(cols).eq('cliente_id', cliente.id);
+  if(r.error && esColumnaFaltante(r.error, 'cliente_id')){
+    if(tabla === 'documentos')
+      r = await sb.from(tabla).select(cols).ilike('cliente', `%${cliente.nombre}%`);
+    else
+      r = { data: [], error: null };
+  } else if(!r.error && !(r.data || []).length && extra?.fallback){
+    const fb = await extra.fallback();
+    r = { data: fb || [], error: null };
+  }
+  return r.data || [];
+}
+
+async function abrirFichaCliente(id){
+  if(!requiereSupabase()) return;
+  fichaClienteId = id;
+  const modal = document.getElementById('modal-ficha-cliente');
+  const body = document.getElementById('ficha-body');
+  modal.classList.add('open');
+  body.innerHTML = '<p class="info-hint">Cargando ficha…</p>';
+
+  const { data: c, error } = await sb.from('clientes').select('*').eq('id', id).single();
+  if(error || !c){ body.innerHTML = '<p class="ficha-empty">No se pudo cargar el cliente.</p>'; return; }
+
+  const est = labelEstadoFicha(c);
+  document.getElementById('ficha-nombre').textContent = c.nombre;
+  document.getElementById('ficha-meta').textContent = `${c.plan} · ${labelPeriodicidad(c.periodicidad)} · vence ${c.fecha_vencimiento || '—'}${c.contacto ? ' · ' + c.contacto : ''}`;
+  const pill = document.getElementById('ficha-estado-pill');
+  pill.className = 'pill ' + est.cls;
+  pill.textContent = est.label;
+
+  const token = (c.nombre.match(/\(([^)]+)\)/) || c.nombre.match(/[a-záéíóúñ0-9]{4,}/gi) || [c.nombre]).slice(-1)[0];
+
+  const [docsFk, movFk, proyFk] = await Promise.all([
+    queryPorCliente('documentos', c, {
+      fallback: async () => {
+        const { data } = await sb.from('documentos').select('*').ilike('cliente', `%${token}%`);
+        return data || [];
+      }
+    }),
+    queryPorCliente('movimientos', c, {
+      fallback: async () => {
+        const { data } = await sb.from('movimientos').select('*').ilike('descripcion', `%${token}%`).order('fecha', { ascending: false });
+        return data || [];
+      }
+    }),
+    queryPorCliente('proyectos', c, {
+      fallback: async () => {
+        const q = /tenis|casella/i.test(c.nombre) ? '%Tenis%' : `%${token}%`;
+        const { data } = await sb.from('proyectos').select('*').ilike('nombre', q);
+        return (data || []).filter(p => p.nombre !== 'General');
+      }
+    })
+  ]);
+
+  let docs = docsFk;
+  if(!docs.length){
+    const { data } = await sb.from('documentos').select('*').ilike('cliente', `%${token}%`);
+    docs = data || [];
+  }
+
+  let movs = movFk;
+  if(!movs.length){
+    const { data } = await sb.from('movimientos').select('*').ilike('descripcion', `%${token}%`).order('fecha', { ascending: false });
+    movs = data || [];
+  } else {
+    movs = [...movs].sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)));
+  }
+
+  const ingresos = movs.filter(m => m.tipo === 'ingreso');
+  const cobrado = ingresos.reduce((s, m) => s + (Number(m.monto) || 0), 0);
+  const porTipo = {};
+  ingresos.forEach(m => {
+    const k = m.tipo_pago || 'pago_total';
+    porTipo[k] = (porTipo[k] || 0) + (Number(m.monto) || 0);
+  });
+  const presupuestado = totalPresupuestadoUsd(docs);
+  const labelsPago = (typeof LABEL_TIPO_PAGO !== 'undefined') ? LABEL_TIPO_PAGO : {};
+
+  const htmlDocs = docs.length
+    ? docs.map(d => `<div class="ficha-row">
+        <div><strong>${esc(d.numero)}</strong> · ${esc(d.tipo)} · ${esc(d.estado || '')}</div>
+        <button type="button" class="ficha-link" onclick="verDocumento('${d.id}')">Abrir</button>
+      </div>`).join('') + htmlModulosPresupuesto(docs)
+    : '<p class="ficha-empty">Sin documentos vinculados.</p>';
+
+  const htmlPagos = ingresos.length
+    ? `<div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Descripción</th><th>Pago</th><th style="text-align:right">Monto</th></tr></thead><tbody>${
+      ingresos.map(m => `<tr>
+        <td style="font-size:12px">${esc(m.fecha)}</td>
+        <td>${esc(m.descripcion)}</td>
+        <td>${typeof badgeTipoPago === 'function' ? badgeTipoPago(m.tipo_pago) : esc(m.tipo_pago || '')}</td>
+        <td style="text-align:right;font-weight:600">${fmt(m.monto)}</td>
+      </tr>`).join('')
+    }</tbody></table></div>`
+    : '<p class="ficha-empty">Sin pagos registrados a este cliente.</p>';
+
+  const tiposHtml = Object.keys(porTipo).length
+    ? `<div class="ficha-tipos">${Object.entries(porTipo).map(([k, v]) =>
+        `<span class="pill pill-inactivo">${esc(labelsPago[k] || k)} ${fmt(v)}</span>`
+      ).join('')}</div>`
+    : '';
+
+  let htmlProy = '<p class="ficha-empty">Sin proyecto de tareas vinculado.</p>';
+  if(proyFk.length){
+    const bloques = [];
+    for(const p of proyFk){
+      const [{ data: tareas }, { data: estados }] = await Promise.all([
+        sb.from('tareas').select('id,titulo,estado,estado_id,estado_final').eq('proyecto_id', p.id),
+        sb.from('proyecto_estados').select('*').eq('proyecto_id', p.id).order('orden')
+      ]);
+      const estMap = {};
+      (estados || []).forEach(e => { estMap[e.id] = e; });
+      const grupos = {};
+      (tareas || []).forEach(t => {
+        const nom = estMap[t.estado_id]?.nombre || t.estado || 'Sin estado';
+        (grupos[nom] = grupos[nom] || []).push(t);
+      });
+      const gruposHtml = Object.keys(grupos).length
+        ? Object.entries(grupos).map(([nom, list]) =>
+            `<div class="ficha-row"><span>${esc(nom)}</span><strong>${list.length}</strong></div>`
+            + list.map(t => `<div class="ficha-row" style="padding-left:12px;color:var(--text2)"><span>${esc(t.titulo)}</span></div>`).join('')
+          ).join('')
+        : '<p class="ficha-empty">Sin tareas.</p>';
+      bloques.push(`<div class="ficha-row">
+        <strong>${esc(p.nombre)}</strong>
+        <button type="button" class="ficha-link" onclick="abrirProyectoDesdeFicha('${p.id}')">Abrir tablero</button>
+      </div>${gruposHtml}`);
+    }
+    htmlProy = bloques.join('');
+  }
+
+  body.innerHTML = `
+    <section class="ficha-sec">
+      <h3>Cuenta corriente</h3>
+      <div class="ficha-cc">
+        <div class="ficha-cc-card"><div class="ficha-cc-label">Total presupuestado</div><div class="ficha-cc-val">${presupuestado ? fmtUsdFicha(presupuestado) : '—'}</div></div>
+        <div class="ficha-cc-card"><div class="ficha-cc-label">Total cobrado</div><div class="ficha-cc-val val-green">${fmt(cobrado)}</div></div>
+      </div>
+      <p class="info-hint" style="margin:0">Presupuesto en USD y cobros en ARS se muestran aparte (aún no hay tipo de cambio automático).</p>
+      ${tiposHtml}
+    </section>
+    <section class="ficha-sec">
+      <h3>Documentos</h3>
+      ${htmlDocs}
+    </section>
+    <section class="ficha-sec">
+      <h3>Historial de pagos</h3>
+      ${htmlPagos}
+    </section>
+    <section class="ficha-sec">
+      <h3>Proyecto y tareas</h3>
+      ${htmlProy}
+    </section>
+  `;
+}
+
+function cerrarFichaCliente(){
+  document.getElementById('modal-ficha-cliente')?.classList.remove('open');
+  fichaClienteId = null;
+}
+
+function fichaAbrirEditar(){
+  const id = fichaClienteId;
+  cerrarFichaCliente();
+  if(id) abrirEditarCliente(id);
+}
+
+function abrirProyectoDesdeFicha(id){
+  cerrarFichaCliente();
+  const tab = document.querySelector('.nav-tab[onclick*="tareas"]');
+  if(typeof showPage === 'function') showPage('tareas', tab);
+  if(typeof abrirProyecto === 'function') abrirProyecto(id);
+}
+
+function poblarSelectClientes(selectId){
+  const el = document.getElementById(selectId);
+  if(!el) return;
+  const cur = el.value;
+  const lista = clientesCompletos || [];
+  el.innerHTML = '<option value="">— Sin cliente —</option>' +
+    lista.map(c => `<option value="${c.id}">${esc(c.nombre)}</option>`).join('');
+  if(cur) el.value = cur;
+}
+
+document.getElementById('modal-ficha-cliente')?.addEventListener('click', e => {
+  if(e.target.id === 'modal-ficha-cliente') cerrarFichaCliente();
+});
