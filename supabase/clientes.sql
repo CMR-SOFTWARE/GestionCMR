@@ -8,10 +8,11 @@ create table if not exists public.clientes (
   fecha_vencimiento date not null,
   contacto text,
   notas text,
-  periodicidad text not null default 'mensual' check (periodicidad in ('mensual', 'semestral', 'anual')),
+  periodicidad text not null default 'mensual' check (periodicidad in ('mensual', 'semestral', 'anual', 'unico')),
   pago_confirmado boolean not null default false,
   fecha_confirmacion_pago timestamptz,
   activo boolean not null default true,
+  mantenimiento_activo boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

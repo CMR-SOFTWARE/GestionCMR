@@ -116,7 +116,7 @@ function mostrarApp(){
   av.textContent = u.nombre.charAt(0).toUpperCase();
   av.style.background = u.color;
   document.getElementById('user-name').textContent = u.nombre;
-  verificarSupabase().then(ok => { if(ok){ poblarMeses(); cargarDatos(); cargarClientes(); initTareaForm(); initInformacionApp(); } });
+  verificarSupabase().then(ok => { if(ok){ poblarMeses(); cargarDatos(); cargarClientes(); cargarPresupuestosParaMov(); initTareaForm(); initInformacionApp(); } });
   setDefaultFechaVence();
 }
 
@@ -153,6 +153,7 @@ function showPage(id, tab){
   document.getElementById('page-'+id).classList.add('active');
   if(tab) tab.classList.add('active');
   if(id === 'clientes' && supabaseConectado) cargarClientes();
+  if(id === 'movimientos' && supabaseConectado) cargarPresupuestosParaMov();
   if(id === 'estadisticas' && supabaseConectado) cargarEstadisticas();
   if(id === 'tareas' && supabaseConectado){
     if(proyectoActual) cargarTareas();

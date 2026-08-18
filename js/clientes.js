@@ -17,6 +17,7 @@ const GRACIA_RENOV_DIAS = 5;
 let clientesCompletos = [];
 
 function sumarPeriodo(fechaStr, periodicidad){
+  if(periodicidad === 'unico') return fechaStr;
   const d = new Date(fechaStr + 'T12:00:00');
   if(periodicidad === 'semestral' || periodicidad === 'trimestral') d.setMonth(d.getMonth() + 6);
   else if(periodicidad === 'anual') d.setFullYear(d.getFullYear() + 1);
@@ -24,18 +25,34 @@ function sumarPeriodo(fechaStr, periodicidad){
   return d.toISOString().slice(0, 10);
 }
 
+function esPeriodicoUnico(c){
+  return (c.periodicidad || 'mensual') === 'unico';
+}
+
+function labelPeriodicidad(per){
+  return { mensual:'Mensual', semestral:'Semestral', anual:'Anual', unico:'Único' }[per] || per;
+}
+
 function pagoConfirmado(c){
   return c.pago_confirmado !== false;
 }
 
+function mantenimientoActivo(c){
+  return c.mantenimiento_activo !== false;
+}
+
 function estadoCliente(c){
   if(!c.activo) return { key:'inactivo', label:'Inactivo', cls:'pill-inactivo', diff:0, daysPast:0, needsRenewal:false };
+  if(!mantenimientoActivo(c))
+    return { key:'proyecto', label:'Proyecto en curso', cls:'pill-est-progreso', diff:0, daysPast:0, needsRenewal:false };
   const hoy = new Date(); hoy.setHours(0,0,0,0);
   const v = new Date(c.fecha_vencimiento + 'T00:00:00');
   const diff = Math.ceil((v - hoy) / 86400000);
   const daysPast = diff < 0 ? -diff : 0;
   if(!pagoConfirmado(c))
     return { key:'pendiente_pago', label:'Pago pendiente', cls:'pill-pendiente-pago', diff, daysPast, needsRenewal:true };
+  if(esPeriodicoUnico(c))
+    return { key:'unico', label:'Pago único', cls:'pill-inactivo', diff, daysPast, needsRenewal:false };
   if(diff < 0 && daysPast > GRACIA_RENOV_DIAS)
     return { key:'vencido', label:'Fuera de gracia', cls:'pill-fuera-gracia', diff, daysPast, needsRenewal:true };
   if(diff <= 0)
@@ -49,7 +66,7 @@ function actualizarBannerRenovaciones(lista){
   const banner = document.getElementById('banner-renovaciones');
   const textEl = document.getElementById('banner-renov-text');
   if(!banner || !textEl) return;
-  const n = (lista||[]).filter(c => c.activo && estadoCliente(c).needsRenewal).length;
+  const n = (lista||[]).filter(c => c.activo && mantenimientoActivo(c) && estadoCliente(c).needsRenewal).length;
   if(n > 0){
     banner.classList.add('show');
     textEl.textContent = n === 1
@@ -62,16 +79,19 @@ function renderPanelRenovaciones(lista){
   const panel = document.getElementById('panel-renovaciones');
   const inner = document.getElementById('renew-list');
   if(!panel || !inner) return;
-  const pend = (lista||[]).filter(c => c.activo && estadoCliente(c).needsRenewal);
+  const pend = (lista||[]).filter(c => c.activo && mantenimientoActivo(c) && estadoCliente(c).needsRenewal);
   if(!pend.length){ panel.style.display = 'none'; return; }
   panel.style.display = 'block';
   inner.innerHTML = pend.map(c => {
     const e = estadoCliente(c);
     const per = c.periodicidad || 'mensual';
+    const perLbl = labelPeriodicidad(per);
     const rest = GRACIA_RENOV_DIAS - e.daysPast;
     let msg;
     if(e.key === 'pendiente_pago')
-      msg = `Alta nueva. ¿Confirmó el primer pago? Se registrará el ingreso y el servicio queda vigente hasta el ${c.fecha_vencimiento}.`;
+      msg = esPeriodicoUnico(c)
+        ? `Pago único pendiente. ¿Confirmó el cobro de ${fmt(c.monto_plan)}? No se repetirá automáticamente.`
+        : `Alta nueva. ¿Confirmó el primer pago? Se registrará el ingreso y el servicio queda vigente hasta el ${c.fecha_vencimiento}.`;
     else if(e.key === 'vencido')
       msg = `Superó los ${GRACIA_RENOV_DIAS} días de gracia. Confirmá el pago o dá de baja el sistema.`;
     else if(e.daysPast === 0)
@@ -83,7 +103,7 @@ function renderPanelRenovaciones(lista){
       <div>
         <h4>${esc(c.nombre)}</h4>
         <p>${msg}</p>
-        <div class="renew-meta">${esc(c.plan)} · ${fmt(c.monto_plan)} · ${e.key === 'pendiente_pago' ? 'Primer pago' : 'Renovación'} ${per}</div>
+        <div class="renew-meta">${esc(c.plan)} · ${fmt(c.monto_plan)} · ${e.key === 'pendiente_pago' ? (esPeriodicoUnico(c) ? 'Pago único' : 'Primer pago') : 'Renovación'} ${perLbl}</div>
       </div>
       <div class="renew-actions">
         <button class="btn-renov-ok" onclick="confirmarRenovacionCliente(${c.id})">✓ Confirmó el pago</button>
@@ -97,19 +117,33 @@ async function confirmarRenovacionCliente(id){
   if(!requiereSupabase()) return;
   const { data: c, error } = await sb.from('clientes').select('*').eq('id', id).single();
   if(error || !c){ toast('No se pudo cargar el cliente'); return; }
+  if(!mantenimientoActivo(c)){
+    toast('Este cliente tiene mantenimiento inactivo (proyecto en curso). Activá el mantenimiento antes de registrar cobros recurrentes.');
+    return;
+  }
   const per = c.periodicidad || 'mensual';
+  if(esPeriodicoUnico(c) && pagoConfirmado(c)){
+    toast('Este cliente ya tiene el pago único confirmado.');
+    return;
+  }
   const esPrimera = !pagoConfirmado(c);
-  const nuevaFecha = esPrimera ? c.fecha_vencimiento : sumarPeriodo(c.fecha_vencimiento, per);
+  const nuevaFecha = esPrimera || esPeriodicoUnico(c) ? c.fecha_vencimiento : sumarPeriodo(c.fecha_vencimiento, per);
   const hoy = new Date().toISOString().slice(0, 10);
-  const desc = esPrimera ? `Alta — ${c.nombre} (${c.plan})` : `Renovación — ${c.nombre} (${c.plan})`;
+  const desc = esPeriodicoUnico(c)
+    ? `Pago único — ${c.nombre} (${c.plan})`
+    : (esPrimera ? `Alta — ${c.nombre} (${c.plan})` : `Renovación — ${c.nombre} (${c.plan})`);
   const monto = Number(c.monto_plan) || 0;
-  const msgConfirm = esPrimera
-    ? `¿Confirmar primer pago de ${fmt(monto)}? El vencimiento queda el ${c.fecha_vencimiento}.`
-    : `¿Confirmar pago de ${fmt(monto)} y extender vencimiento al ${nuevaFecha}?`;
+  const tipoPagoMov = esPeriodicoUnico(c) ? 'pago_total' : (per === 'mensual' ? 'mensual' : 'pago_total');
+  const catMov = esPeriodicoUnico(c) ? 'Proyecto' : 'Mantenimiento';
+  const msgConfirm = esPeriodicoUnico(c)
+    ? `¿Confirmar pago único de ${fmt(monto)}? No se generarán renovaciones automáticas.`
+    : (esPrimera
+      ? `¿Confirmar primer pago de ${fmt(monto)}? El vencimiento queda el ${c.fecha_vencimiento}.`
+      : `¿Confirmar pago de ${fmt(monto)} y extender vencimiento al ${nuevaFecha}?`);
   if(!confirm(msgConfirm)) return;
 
   const { error: eMov } = await sb.from('movimientos').insert({
-    fecha: hoy, tipo: 'ingreso', descripcion: desc, categoria: 'Mantenimiento', monto, socio: sesion
+    fecha: hoy, tipo: 'ingreso', descripcion: desc, categoria: catMov, tipo_pago: tipoPagoMov, monto, socio: sesion
   });
   if(eMov){ toast(supabaseErrMsg(eMov)); return; }
 
@@ -121,7 +155,7 @@ async function confirmarRenovacionCliente(id){
   const { error: eCl } = await sb.from('clientes').update(upd).eq('id', id);
   if(eCl){ toast(supabaseErrMsg(eCl)); return; }
 
-  toast(esPrimera ? 'Primer pago confirmado — ingreso registrado en Movimientos' : 'Renovación confirmada — ingreso registrado en Movimientos');
+  toast(esPeriodicoUnico(c) ? 'Pago único confirmado — ingreso registrado' : (esPrimera ? 'Primer pago confirmado — ingreso registrado en Movimientos' : 'Renovación confirmada — ingreso registrado en Movimientos'));
   const promesas = [cargarClientes(), cargarDatos(), poblarMeses()];
   if(document.getElementById('page-estadisticas')?.classList.contains('active')) promesas.push(cargarEstadisticas());
   if(typeof verificarRecordatoriosPendientes === 'function') promesas.push(verificarRecordatoriosPendientes());
@@ -227,7 +261,11 @@ async function agregarCliente(){
   const btn = document.getElementById('btn-cl-agregar');
   btn.disabled = true; btn.textContent = 'Guardando…';
   const periodicidad = document.getElementById('cl-periodicidad').value;
-  const { error } = await sb.from('clientes').insert({ nombre, plan, monto_plan: monto, fecha_vencimiento, contacto, periodicidad, pago_confirmado: false, activo: true });
+  const mantenimiento_activo = document.getElementById('cl-mant-activo')?.checked !== false;
+  const { error } = await sb.from('clientes').insert({
+    nombre, plan, monto_plan: monto, fecha_vencimiento, contacto, periodicidad,
+    pago_confirmado: false, activo: true, mantenimiento_activo
+  });
   if(error){ toast(supabaseErrMsg(error)); console.error(error); }
   else{
     document.getElementById('cl-nombre').value = '';
@@ -253,6 +291,8 @@ async function abrirEditarCliente(id){
   document.getElementById('ec-contacto').value = c.contacto || '';
   document.getElementById('ec-notas').value = c.notas || '';
   document.getElementById('ec-activo').value = c.activo ? 'true' : 'false';
+  const ecMant = document.getElementById('ec-mant-activo');
+  if(ecMant) ecMant.value = mantenimientoActivo(c) ? 'true' : 'false';
   const ecPer = document.getElementById('ec-periodicidad');
   if(ecPer) ecPer.value = c.periodicidad || 'mensual';
   document.getElementById('modal-cliente').classList.add('open');
@@ -275,8 +315,10 @@ async function guardarClienteEditado(){
   if(!nombre || !fecha_vencimiento){ toast('Completá nombre y vencimiento'); return; }
 
   const periodicidad = document.getElementById('ec-periodicidad')?.value || 'mensual';
+  const mantenimiento_activo = document.getElementById('ec-mant-activo')?.value !== 'false';
   const { error } = await sb.from('clientes').update({
-    nombre, plan, monto_plan, fecha_vencimiento, contacto, notas, activo, periodicidad, updated_at: new Date().toISOString()
+    nombre, plan, monto_plan, fecha_vencimiento, contacto, notas, activo, periodicidad, mantenimiento_activo,
+    updated_at: new Date().toISOString()
   }).eq('id', editandoClienteId);
 
   if(error){ toast(supabaseErrMsg(error)); return; }

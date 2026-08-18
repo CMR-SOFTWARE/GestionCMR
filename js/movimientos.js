@@ -1,5 +1,68 @@
 // ─── Movimientos: sync, CRUD, tabla, totales ───
 
+const LABEL_TIPO_PAGO = {
+  'seña': 'Seña',
+  pago_parcial: 'Parcial',
+  pago_total: 'Total',
+  mensual: 'Mensual',
+  otro: 'Otro'
+};
+
+let presupuestosParaMov = [];
+
+function badgeTipoPago(tp){
+  const v = tp || 'pago_total';
+  const lbl = LABEL_TIPO_PAGO[v] || v;
+  const cls = v === 'mensual' ? 'pill-vigente'
+    : (v === 'seña' || v === 'pago_parcial') ? 'pill-alerta'
+    : v === 'otro' ? 'pill-inactivo'
+    : 'pill-ing';
+  return `<span class="pill ${cls} pill-tipo-pago">${lbl}</span>`;
+}
+
+function idTipoPago(prefix){
+  return prefix ? prefix + 'tipo-pago' : 'tipo-pago';
+}
+
+function toggleDocPresupuestoMov(prefix){
+  const sel = document.getElementById(idTipoPago(prefix));
+  const v = sel?.value || 'pago_total';
+  const show = v === 'seña' || v === 'pago_parcial';
+  const wrap = document.getElementById(prefix ? prefix + 'doc-wrap' : 'doc-presupuesto-wrap');
+  if(wrap) wrap.style.display = show ? 'block' : 'none';
+}
+
+async function cargarPresupuestosParaMov(){
+  if(!sb || !supabaseConectado) return;
+  const { data, error } = await sb.from('documentos')
+    .select('id, numero, cliente')
+    .eq('tipo', 'presupuesto')
+    .order('created_at', { ascending: false })
+    .limit(100);
+  if(error){
+    console.warn('[Presupuestos mov]', error);
+    return;
+  }
+  presupuestosParaMov = data || [];
+  ['doc-presupuesto', 'em-doc-presupuesto'].forEach(id => {
+    const el = document.getElementById(id);
+    if(!el) return;
+    const cur = el.value;
+    el.innerHTML = '<option value="">— Sin vínculo —</option>' +
+      presupuestosParaMov.map(p =>
+        `<option value="${p.id}">${esc(p.numero)} — ${esc(p.cliente)}</option>`
+      ).join('');
+    if(cur) el.value = cur;
+  });
+}
+
+function leerDocumentoIdMov(prefix){
+  const id = prefix ? prefix + 'doc-presupuesto' : 'doc-presupuesto';
+  const el = document.getElementById(id);
+  const v = el?.value || '';
+  return v || null;
+}
+
 async function cargarDatos(){
   if(!sb || !requiereSupabase()) return;
   setSyncStatus(true, 'Sincronizando…');
@@ -34,7 +97,9 @@ async function agregar(){
   const tipo  = document.getElementById('tipo').value;
   const desc  = document.getElementById('desc').value.trim();
   const cat   = document.getElementById('cat').value;
+  const tipoPago = document.getElementById('tipo-pago')?.value || 'pago_total';
   const monto = parseFloat(document.getElementById('monto').value);
+  const documento_id = leerDocumentoIdMov('');
   if(!desc)         { toast('Completá la descripción'); return; }
   if(!monto||monto<=0){ toast('Ingresá un monto válido'); return; }
 
@@ -42,11 +107,17 @@ async function agregar(){
   btn.disabled = true; btn.textContent = 'Guardando…';
 
   const hoy = new Date().toISOString().slice(0,10);
-  const { error } = await sb.from('movimientos').insert({ fecha:hoy, tipo, descripcion:desc, categoria:cat, monto, socio:sesion });
+  const row = { fecha:hoy, tipo, descripcion:desc, categoria:cat, tipo_pago: tipoPago, monto, socio:sesion };
+  if(documento_id) row.documento_id = documento_id;
+
+  const { error } = await sb.from('movimientos').insert(row);
   if(error){ toast(supabaseErrMsg(error)); console.error('[Supabase]', error); }
   else{
     document.getElementById('desc').value = '';
     document.getElementById('monto').value = '';
+    document.getElementById('tipo-pago').value = 'pago_total';
+    document.getElementById('doc-presupuesto').value = '';
+    toggleDocPresupuestoMov('');
     toast('Movimiento guardado');
     await Promise.all([cargarDatos(), poblarMeses()]);
   }
@@ -72,7 +143,6 @@ async function limpiarTodo(){
   await Promise.all([cargarDatos(), poblarMeses()]);
 }
 
-// ─── meses ───────────────────────────────
 async function poblarMeses(){
   if(!sb || !supabaseConectado) return;
   const { data, error } = await sb.from('movimientos').select('fecha').order('fecha', {ascending:false});
@@ -85,7 +155,6 @@ async function poblarMeses(){
   if(actual) sel.value = actual;
 }
 
-// ─── render ──────────────────────────────
 function fmt(n){ return '$ '+Number(n).toLocaleString('es-AR',{minimumFractionDigits:0,maximumFractionDigits:2}); }
 
 function actualizarTotales(datos){
@@ -113,6 +182,7 @@ function renderTabla(datos){
       <td><span class="pill ${r.tipo==='ingreso'?'pill-ing':'pill-gas'}">${r.tipo==='ingreso'?'Ingreso':'Gasto'}</span></td>
       <td>${esc(r.descripcion)}</td>
       <td class="hide-mob" style="font-size:12px;color:#888">${esc(r.categoria)}</td>
+      <td class="hide-mob">${badgeTipoPago(r.tipo_pago)}</td>
       <td class="hide-mob">${socioPill}</td>
       <td style="text-align:right" class="${r.tipo==='ingreso'?'monto-ing':'monto-gas'}">${r.tipo==='gasto'?'− ':'+ '}${fmt(r.monto)}</td>
       <td><div class="acciones-cell">
@@ -125,16 +195,20 @@ function renderTabla(datos){
 
 let editandoMovId = null;
 
-function editarMovimiento(id){
+async function editarMovimiento(id){
   const mov = todosLosDatos.find(r => r.id === id);
   if(!mov){ toast('No se encontró el movimiento'); return; }
+  await cargarPresupuestosParaMov();
   editandoMovId = id;
   document.getElementById('em-tipo').value = mov.tipo;
   document.getElementById('em-monto').value = mov.monto;
   document.getElementById('em-desc').value = mov.descripcion;
   document.getElementById('em-cat').value = mov.categoria;
+  document.getElementById('em-tipo-pago').value = mov.tipo_pago || 'pago_total';
   document.getElementById('em-fecha').value = mov.fecha;
   document.getElementById('em-socio').value = mov.socio;
+  document.getElementById('em-doc-presupuesto').value = mov.documento_id || '';
+  toggleDocPresupuestoMov('em-');
   document.getElementById('modal-mov').classList.add('open');
 }
 
@@ -149,15 +223,19 @@ async function guardarMovimiento(){
   const monto = parseFloat(document.getElementById('em-monto').value);
   const desc = document.getElementById('em-desc').value.trim();
   const cat = document.getElementById('em-cat').value;
+  const tipo_pago = document.getElementById('em-tipo-pago')?.value || 'pago_total';
   const fecha = document.getElementById('em-fecha').value;
   const socio = document.getElementById('em-socio').value;
+  const documento_id = leerDocumentoIdMov('em-') || null;
   if(!desc){ toast('Completá la descripción'); return; }
   if(!monto||monto<=0){ toast('Ingresá un monto válido'); return; }
   if(!fecha){ toast('Elegí la fecha'); return; }
 
   const btn = document.getElementById('btn-guardar-mov');
   btn.disabled = true; btn.textContent = 'Guardando…';
-  const { error } = await sb.from('movimientos').update({ tipo, monto, descripcion: desc, categoria: cat, fecha, socio }).eq('id', editandoMovId);
+  const { error } = await sb.from('movimientos').update({
+    tipo, monto, descripcion: desc, categoria: cat, tipo_pago, fecha, socio, documento_id
+  }).eq('id', editandoMovId);
   if(error){ toast(supabaseErrMsg(error)); console.error(error); }
   else{
     toast('Movimiento actualizado');
@@ -168,3 +246,9 @@ async function guardarMovimiento(){
 }
 
 function buscarDebounce(){ clearTimeout(buscarTimer); buscarTimer = setTimeout(cargarDatos, 350); }
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('modal-mov')?.addEventListener('click', e => {
+    if(e.target.id === 'modal-mov') cerrarModalMov();
+  });
+});

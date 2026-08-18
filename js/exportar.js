@@ -2,9 +2,9 @@
 // ─── exportar ────────────────────────────
 function exportarCSV(){
   if(!todosLosDatos.length){ toast('No hay datos para exportar'); return; }
-  const cab = 'Fecha,Tipo,Descripcion,Categoria,Monto,Socio\n';
+  const cab = 'Fecha,Tipo,Descripcion,Categoria,TipoPago,Monto,Socio\n';
   const filas = todosLosDatos.map(r=>
-    `${r.fecha},${r.tipo},"${r.descripcion.replace(/"/g,'""')}",${r.categoria},${r.monto},${USUARIOS[r.socio]?.nombre||r.socio}`
+    `${r.fecha},${r.tipo},"${r.descripcion.replace(/"/g,'""')}",${r.categoria},${r.tipo_pago||'pago_total'},${r.monto},${USUARIOS[r.socio]?.nombre||r.socio}`
   ).join('\n');
   const blob = new Blob(['\uFEFF'+cab+filas],{type:'text/csv;charset=utf-8'});
   const url = URL.createObjectURL(blob);

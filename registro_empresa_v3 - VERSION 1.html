@@ -117,9 +117,22 @@
             <option>Retiro de socio</option><option>Otro</option>
           </select>
         </div>
+        <div class="field"><label>Tipo de pago</label>
+          <select id="tipo-pago" onchange="toggleDocPresupuestoMov('')">
+            <option value="pago_total">Pago total</option>
+            <option value="seña">Seña</option>
+            <option value="pago_parcial">Pago parcial</option>
+            <option value="mensual">Mensual</option>
+            <option value="otro">Otro</option>
+          </select>
+        </div>
         <div class="field"><label>Monto ($)</label>
           <input id="monto" type="number" placeholder="0.00" min="0" step="0.01">
         </div>
+      </div>
+      <div id="doc-presupuesto-wrap" class="field" style="display:none;margin-top:8px;max-width:420px">
+        <label>Vincular a presupuesto (opcional)</label>
+        <select id="doc-presupuesto"><option value="">— Sin vínculo —</option></select>
       </div>
       <div style="margin-top:12px;display:flex;justify-content:flex-end">
         <button class="btn-success" id="btn-agregar" onclick="agregar()">+ Agregar movimiento</button>
@@ -156,13 +169,14 @@
               <th style="width:70px">Tipo</th>
               <th>Descripción</th>
               <th class="hide-mob" style="width:130px">Categoría</th>
+              <th class="hide-mob" style="width:88px">Pago</th>
               <th class="hide-mob" style="width:80px">Socio</th>
               <th style="width:110px;text-align:right">Monto</th>
               <th style="width:64px"></th>
             </tr>
           </thead>
           <tbody id="tabla">
-            <tr><td colspan="7" style="text-align:center;padding:2rem;color:#aaa;font-size:13px">Cargando…</td></tr>
+            <tr><td colspan="8" style="text-align:center;padding:2rem;color:#aaa;font-size:13px">Cargando…</td></tr>
           </tbody>
         </table>
       </div>
@@ -218,11 +232,12 @@
         </div>
         <div class="field"><label>Monto ($)</label><input id="cl-monto" type="number" placeholder="0" min="0" step="0.01"></div>
         <div class="field"><label>Periodicidad</label>
-          <select id="cl-periodicidad"><option value="mensual">Mensual</option><option value="semestral">Semestral</option><option value="anual">Anual</option></select>
+          <select id="cl-periodicidad"><option value="mensual">Mensual</option><option value="semestral">Semestral</option><option value="anual">Anual</option><option value="unico">Único</option></select>
         </div>
         <div class="field"><label>Vencimiento</label><input id="cl-vence" type="date"></div>
         <div class="field"><label>Contacto</label><input id="cl-contacto" type="text" placeholder="Email o teléfono"></div>
       </div>
+      <label class="doc-check" style="margin-top:8px"><input type="checkbox" id="cl-mant-activo" checked> Mantenimiento recurrente activo (desmarcar si es solo proyecto en desarrollo)</label>
       <div style="margin-top:12px;display:flex;justify-content:flex-end">
         <button class="btn-success" id="btn-cl-agregar" onclick="agregarCliente()">+ Agregar cliente</button>
       </div>
@@ -231,7 +246,7 @@
       <div class="panel-header">
         <div class="panel-title">Listado de clientes</div>
         <div class="filters">
-          <select id="f-cl-estado" onchange="cargarClientes()"><option value="">Todos</option><option value="vigente">Vigentes</option><option value="pendiente_pago">Pago pendiente</option><option value="alerta">Por vencer</option><option value="en_gracia">En gracia</option><option value="vencido">Fuera de gracia</option><option value="inactivo">Inactivos</option></select>
+          <select id="f-cl-estado" onchange="cargarClientes()"><option value="">Todos</option><option value="vigente">Vigentes</option><option value="proyecto">Proyecto en curso</option><option value="unico">Pago único</option><option value="pendiente_pago">Pago pendiente</option><option value="alerta">Por vencer</option><option value="en_gracia">En gracia</option><option value="vencido">Fuera de gracia</option><option value="inactivo">Inactivos</option></select>
           <input type="text" id="f-cl-buscar" placeholder="Buscar…" style="width:140px" oninput="buscarClientesDebounce()">
         </div>
       </div>
@@ -564,10 +579,23 @@
           <option>Retiro de socio</option><option>Otro</option>
         </select>
       </div>
+      <div class="field"><label>Tipo de pago</label>
+        <select id="em-tipo-pago" onchange="toggleDocPresupuestoMov('em-')">
+          <option value="pago_total">Pago total</option>
+          <option value="seña">Seña</option>
+          <option value="pago_parcial">Pago parcial</option>
+          <option value="mensual">Mensual</option>
+          <option value="otro">Otro</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-grid form-2" style="margin-bottom:10px">
       <div class="field"><label>Fecha</label>
         <input id="em-fecha" type="date">
       </div>
-    </div>
+      <div class="field" id="em-doc-wrap" style="display:none"><label>Presupuesto vinculado</label>
+        <select id="em-doc-presupuesto"><option value="">— Sin vínculo —</option></select>
+      </div>
     <div class="field" style="margin-bottom:10px"><label>Registrado por (socio)</label>
       <select id="em-socio">
         <option value="tomi">Tomi</option>
@@ -630,11 +658,14 @@
     <div class="form-grid form-2" style="margin-bottom:10px">
       <div class="field"><label>Vencimiento</label><input id="ec-vence" type="date"></div>
       <div class="field"><label>Periodicidad</label>
-        <select id="ec-periodicidad"><option value="mensual">Mensual</option><option value="semestral">Semestral</option><option value="anual">Anual</option></select>
+        <select id="ec-periodicidad"><option value="mensual">Mensual</option><option value="semestral">Semestral</option><option value="anual">Anual</option><option value="unico">Único</option></select>
       </div>
     </div>
     <div class="form-grid form-2" style="margin-bottom:10px">
       <div class="field"><label>Estado</label><select id="ec-activo"><option value="true">Activo</option><option value="false">Inactivo</option></select></div>
+      <div class="field"><label>Mantenimiento recurrente</label>
+        <select id="ec-mant-activo"><option value="true">Activo (cobra plan)</option><option value="false">Inactivo (solo proyecto)</option></select>
+      </div>
     </div>
     <div class="field" style="margin-bottom:10px"><label>Contacto</label><input id="ec-contacto" type="text"></div>
     <div class="field"><label>Notas</label><input id="ec-notas" type="text"></div>

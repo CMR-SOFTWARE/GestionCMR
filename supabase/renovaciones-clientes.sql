@@ -10,7 +10,7 @@ alter table public.clientes drop constraint if exists clientes_periodicidad_chec
 
 alter table public.clientes
   add constraint clientes_periodicidad_check
-  check (periodicidad in ('mensual', 'semestral', 'anual'));
+  check (periodicidad in ('mensual', 'semestral', 'anual', 'unico'));
 
 -- Primer pago: false hasta confirmar; clientes ya cargados quedan en true
 alter table public.clientes

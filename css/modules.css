@@ -324,6 +324,7 @@ tbody tr:hover td{background:var(--surface2)}
 .doc-checks{display:flex;flex-wrap:wrap;gap:12px;margin-top:8px}
 .btn-doc-add{margin-top:8px;font-size:12px;height:34px;padding:0 12px;border-color:rgba(10,157,143,.3);color:var(--teal);background:rgba(10,157,143,.06)}
 .btn-doc-add:hover{background:rgba(10,157,143,.12)}
+.pill-tipo-pago{font-size:10px;padding:2px 8px;white-space:nowrap}
 @media(max-width:680px){
   .form-grid,.form-3,.form-5,.form-6,.form-tarea{grid-template-columns:1fr}
   .stat-grid,.stat-grid-4{grid-template-columns:1fr 1fr}

@@ -19,6 +19,7 @@ function contarClientesNuevosPorMes(clientes, meses){
   const porMes = {};
   meses.forEach(m => { porMes[m] = 0; });
   (clientes||[]).forEach(c => {
+    if(!mantenimientoActivo(c)) return;
     const m = mesConfirmacionCliente(c);
     if(m && porMes[m] !== undefined) porMes[m]++;
   });
@@ -32,6 +33,7 @@ function clientesTotalesPorMes(clientes, meses){
     const finMes = new Date(y, mo, 0, 23, 59, 59);
     return lista.filter(c => {
       if(c.activo === false) return false;
+      if(!mantenimientoActivo(c)) return false;
       if(pagoConfirmado(c)){
         const f = c.fecha_confirmacion_pago;
         return f && new Date(f) <= finMes;
@@ -46,6 +48,8 @@ function clientesTotalesPorMes(clientes, meses){
 
 function esPendienteProyeccion(c){
   if(c.activo === false) return false;
+  if(!mantenimientoActivo(c)) return false;
+  if(esPeriodicoUnico(c)) return false;
   if(pagoConfirmado(c)) return false;
   return true;
 }

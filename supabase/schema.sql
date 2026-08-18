@@ -8,6 +8,7 @@ create table if not exists public.movimientos (
   tipo text not null check (tipo in ('ingreso', 'gasto')),
   descripcion text not null,
   categoria text not null,
+  tipo_pago text not null default 'pago_total' check (tipo_pago in ('seña', 'pago_parcial', 'pago_total', 'mensual', 'otro')),
   monto numeric(12, 2) not null check (monto > 0),
   socio text not null check (socio in ('tomi', 'chipi', 'gena')),
   created_at timestamptz not null default now()
