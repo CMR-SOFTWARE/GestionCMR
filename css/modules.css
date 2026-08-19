@@ -352,6 +352,8 @@ tbody tr:hover td{background:var(--surface2)}
 tr.cliente-row{cursor:pointer}
 tr.cliente-row:hover td{background:var(--surface2)}
 .ficha-modulos{font-size:12px;color:var(--text2);margin:6px 0 0;padding-left:18px}
+.ficha-recibo-actions{display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end}
+.btn-recibo{padding:4px 8px;font-size:10px;height:auto}
 @media(max-width:680px){
   .form-grid,.form-3,.form-5,.form-6,.form-tarea{grid-template-columns:1fr}
   .stat-grid,.stat-grid-4{grid-template-columns:1fr 1fr}

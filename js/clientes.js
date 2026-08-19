@@ -358,6 +358,8 @@ function buscarClientesDebounce(){
 }
 
 let fichaClienteId = null;
+let fichaClienteActual = null;
+let fichaPagosById = {};
 
 function onFilaClienteClick(ev, id){
   if(ev.target.closest('button')) return;
@@ -422,6 +424,8 @@ async function queryPorCliente(tabla, cliente, extra){
 async function abrirFichaCliente(id){
   if(!requiereSupabase()) return;
   fichaClienteId = id;
+  fichaClienteActual = null;
+  fichaPagosById = {};
   const modal = document.getElementById('modal-ficha-cliente');
   const body = document.getElementById('ficha-body');
   modal.classList.add('open');
@@ -429,6 +433,7 @@ async function abrirFichaCliente(id){
 
   const { data: c, error } = await sb.from('clientes').select('*').eq('id', id).single();
   if(error || !c){ body.innerHTML = '<p class="ficha-empty">No se pudo cargar el cliente.</p>'; return; }
+  fichaClienteActual = c;
 
   const est = labelEstadoFicha(c);
   document.getElementById('ficha-nombre').textContent = c.nombre;
@@ -493,13 +498,25 @@ async function abrirFichaCliente(id){
     : '<p class="ficha-empty">Sin documentos vinculados.</p>';
 
   const htmlPagos = ingresos.length
-    ? `<div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Descripción</th><th>Pago</th><th style="text-align:right">Monto</th></tr></thead><tbody>${
-      ingresos.map(m => `<tr>
+    ? `<div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Descripción</th><th>Pago</th><th style="text-align:right">Monto</th><th></th></tr></thead><tbody>${
+      ingresos.map(m => {
+        fichaPagosById[m.id] = m;
+        const telOk = typeof telefonoWhatsApp === 'function' && telefonoWhatsApp(c.contacto);
+        const mailOk = !!emailDeContactoCliente(c.contacto);
+        return `<tr>
         <td style="font-size:12px">${esc(m.fecha)}</td>
         <td>${esc(m.descripcion)}</td>
         <td>${typeof badgeTipoPago === 'function' ? badgeTipoPago(m.tipo_pago) : esc(m.tipo_pago || '')}</td>
         <td style="text-align:right;font-weight:600">${fmt(m.monto)}</td>
-      </tr>`).join('')
+        <td>
+          <div class="ficha-recibo-actions">
+            <button type="button" class="ficha-link" onclick="verReciboPago(${m.id})" title="Ver e imprimir recibo">Recibo</button>
+            <button type="button" class="btn-wsp btn-recibo" ${telOk ? '' : 'disabled title="Sin teléfono en Contacto"'} onclick="enviarReciboWhatsApp(${m.id})">WhatsApp</button>
+            ${mailOk ? `<button type="button" class="btn-email-info btn-recibo" onclick="enviarReciboEmail(${m.id})">Email</button>` : ''}
+          </div>
+        </td>
+      </tr>`;
+      }).join('')
     }</tbody></table></div>`
     : '<p class="ficha-empty">Sin pagos registrados a este cliente.</p>';
 
@@ -566,12 +583,141 @@ async function abrirFichaCliente(id){
 function cerrarFichaCliente(){
   document.getElementById('modal-ficha-cliente')?.classList.remove('open');
   fichaClienteId = null;
+  fichaClienteActual = null;
+  fichaPagosById = {};
 }
 
 function fichaAbrirEditar(){
   const id = fichaClienteId;
   cerrarFichaCliente();
   if(id) abrirEditarCliente(id);
+}
+
+function emailDeContactoCliente(contacto){
+  const m = String(contacto || '').match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+  return m ? m[0] : null;
+}
+
+function fmtFechaRecibo(f){
+  const s = String(f || '').slice(0, 10);
+  const [y, mo, d] = s.split('-');
+  if(!y || !mo || !d) return s || '—';
+  return `${d}/${mo}/${y}`;
+}
+
+function nroReciboPago(mov){
+  return 'R' + String(mov.id).padStart(5, '0');
+}
+
+function labelTipoPagoRecibo(tp){
+  if(typeof LABEL_TIPO_PAGO !== 'undefined' && LABEL_TIPO_PAGO[tp]) return LABEL_TIPO_PAGO[tp];
+  return { seña:'Seña', pago_parcial:'Pago parcial', pago_total:'Pago total', mensual:'Mensual', otro:'Otro' }[tp] || (tp || 'Pago');
+}
+
+function datosRecibo(movId){
+  const cliente = fichaClienteActual;
+  const mov = fichaPagosById[movId];
+  if(!cliente || !mov){ toast('No se encontró el pago'); return null; }
+  return { cliente, mov };
+}
+
+function textoReciboPago(cliente, mov){
+  const m = typeof marcaCMR === 'function' ? marcaCMR() : { empresa:'CMR Software Solutions', telefono:'3364 57-8599' };
+  return `Hola ${cliente.nombre}, te enviamos el recibo de cobro de ${m.empresa}.
+
+N° ${nroReciboPago(mov)}
+Fecha: ${fmtFechaRecibo(mov.fecha)}
+Concepto: ${mov.descripcion}
+Tipo: ${labelTipoPagoRecibo(mov.tipo_pago)}
+Monto: ${fmt(mov.monto)}
+
+¡Gracias! WhatsApp CMR: ${m.telefono}`;
+}
+
+function buildHTMLRecibo(cliente, mov){
+  const m = typeof marcaCMR === 'function' ? marcaCMR() : {
+    empresa:'CMR Software Solutions', telefono:'3364 57-8599',
+    email:'contacto@cmrsoftwaresolutions.com',
+    ubicacion:'San Nicolás de los Arroyos, Buenos Aires, Argentina',
+    color:'#0a9d8f', colorOscuro:'#0d1b2e', logoText:'CM', logoUrl:''
+  };
+  const nro = nroReciboPago(mov);
+  const socio = (typeof USUARIOS !== 'undefined' && USUARIOS[mov.socio]?.nombre) || mov.socio || '';
+  const logo = m.logoUrl
+    ? `<img src="${esc(m.logoUrl)}" alt="${esc(m.empresa)}" style="height:42px">`
+    : `<div class="logo">${esc(m.logoText || 'CM')}</div>`;
+  return `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Recibo ${nro}</title>
+<style>
+  *{box-sizing:border-box} body{margin:0;font-family:'Segoe UI',system-ui,sans-serif;color:${m.colorOscuro};background:#f0f4f8}
+  .page{max-width:720px;margin:24px auto;background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden}
+  .banner{background:${m.colorOscuro};color:#fff;padding:22px 28px;display:flex;justify-content:space-between;align-items:center;gap:16px}
+  .logo{width:42px;height:42px;border-radius:10px;background:${m.color};display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px}
+  .banner h1{margin:0;font-size:20px}
+  .banner p{margin:4px 0 0;font-size:12px;opacity:.8}
+  .pad{padding:28px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:22px}
+  .box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px}
+  .box h3{margin:0 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#64748b}
+  .box p{margin:0;font-size:14px}
+  table{width:100%;border-collapse:collapse;margin:8px 0 18px}
+  th,td{padding:10px 8px;border-bottom:1px solid #e2e8f0;text-align:left;font-size:14px}
+  th{font-size:11px;text-transform:uppercase;color:#64748b}
+  .total{display:flex;justify-content:space-between;align-items:center;background:${m.color}14;border:1px solid ${m.color}44;border-radius:10px;padding:14px 16px;font-size:18px;font-weight:700;color:${m.color}}
+  .nota{margin-top:22px;font-size:11px;color:#64748b}
+  @media print{body{background:#fff}.page{margin:0;border:none}}
+</style></head><body>
+<div class="page">
+  <div class="banner">
+    <div style="display:flex;gap:12px;align-items:center">${logo}<div><strong>${esc(m.empresa)}</strong><p>${esc(m.telefono)} · ${esc(m.email)}</p></div></div>
+    <div style="text-align:right"><h1>Recibo ${esc(nro)}</h1><p>${esc(fmtFechaRecibo(mov.fecha))}</p></div>
+  </div>
+  <div class="pad">
+    <div class="grid">
+      <div class="box"><h3>Recibido de</h3><p><strong>${esc(cliente.nombre)}</strong></p>${cliente.contacto?`<p>${esc(cliente.contacto)}</p>`:''}${cliente.plan?`<p>${esc(cliente.plan)}</p>`:''}</div>
+      <div class="box"><h3>Emitido por</h3><p><strong>${esc(m.empresa)}</strong></p><p>${esc(m.ubicacion)}</p>${socio?`<p>Registró: ${esc(socio)}</p>`:''}</div>
+    </div>
+    <table>
+      <thead><tr><th>Concepto</th><th>Tipo</th><th style="text-align:right">Monto</th></tr></thead>
+      <tbody><tr><td>${esc(mov.descripcion)}</td><td>${esc(labelTipoPagoRecibo(mov.tipo_pago))}</td><td style="text-align:right;font-weight:700">${fmt(mov.monto)}</td></tr></tbody>
+    </table>
+    <div class="total"><span>Total cobrado</span><span>${fmt(mov.monto)}</span></div>
+    <p class="nota">Comprobante interno de cobro de ${esc(m.empresa)}. No válido como factura fiscal.</p>
+  </div>
+</div>
+</body></html>`;
+}
+
+function verReciboPago(movId){
+  const d = datosRecibo(movId);
+  if(!d) return;
+  const html = buildHTMLRecibo(d.cliente, d.mov);
+  const nombre = `Recibo_${nroReciboPago(d.mov)}_${(d.cliente.nombre || 'cliente').replace(/\s+/g,'_')}.html`;
+  if(typeof abrirHtmlVista === 'function') abrirHtmlVista(`Recibo ${nroReciboPago(d.mov)} — CMR`, html, nombre);
+  else {
+    const w = window.open('', '_blank');
+    if(w){ w.document.write(html); w.document.close(); }
+    else toast('Permití popups para ver el recibo');
+  }
+}
+
+function enviarReciboWhatsApp(movId){
+  const d = datosRecibo(movId);
+  if(!d) return;
+  const tel = typeof telefonoWhatsApp === 'function' ? telefonoWhatsApp(d.cliente.contacto) : null;
+  if(!tel){ toast('El cliente no tiene teléfono válido en Contacto'); return; }
+  if(typeof abrirWhatsAppNumero === 'function') abrirWhatsAppNumero(tel, textoReciboPago(d.cliente, d.mov));
+  else window.open('https://wa.me/' + tel + '?text=' + encodeURIComponent(textoReciboPago(d.cliente, d.mov)), '_blank');
+}
+
+function enviarReciboEmail(movId){
+  const d = datosRecibo(movId);
+  if(!d) return;
+  const email = emailDeContactoCliente(d.cliente.contacto);
+  if(!email){ toast('El cliente no tiene email en Contacto'); return; }
+  const nro = nroReciboPago(d.mov);
+  const subject = encodeURIComponent(`Recibo ${nro} — CMR Software`);
+  const body = encodeURIComponent(textoReciboPago(d.cliente, d.mov));
+  window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
 }
 
 function abrirProyectoDesdeFicha(id){
