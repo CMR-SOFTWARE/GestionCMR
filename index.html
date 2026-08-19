@@ -761,7 +761,7 @@
       <div class="field"><label>Fecha</label><input id="up-fecha" type="date"></div>
       <div class="field" style="grid-column:1/-1"><label>Cliente / Proyecto</label><input id="up-cliente" type="text"></div>
       <div class="field"><label>Tipo</label>
-        <select id="up-tipo"><option value="archivo">Archivo</option><option value="presupuesto">Presupuesto</option><option value="contrato">Contrato</option></select>
+        <select id="up-tipo" onchange="onTipoSubidaChange()"><option value="archivo">Archivo</option><option value="presupuesto">Presupuesto</option><option value="contrato">Contrato</option></select>
       </div>
       <div class="field"><label>Estado</label>
         <select id="up-estado"><option>Borrador</option><option>Enviado</option><option>Aceptado</option><option>Firmado</option></select>

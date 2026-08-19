@@ -762,17 +762,25 @@ async function abrirEditarDocumento(id){
   editandoDocumentoId = id;
   editandoTipoDoc = d.tipo;
 
-  if(d.origen === 'subido' || d.tipo === 'archivo'){
+  if(d.origen === 'subido' || d.tipo === 'archivo' || d.contenido?.archivoData){
+    const tipoActual = ['presupuesto', 'contrato', 'archivo'].includes(d.tipo) ? d.tipo : 'archivo';
     document.getElementById('modal-doc-title').textContent = `Archivo ${d.numero}`;
     document.getElementById('modal-doc-body').innerHTML = `
       <div class="form-grid form-2">
         <div class="field"><label>Número</label><input id="da-numero" type="text" value="${escDoc(d.numero)}"></div>
         <div class="field"><label>Fecha</label><input id="da-fecha" type="date" value="${d.fecha||''}"></div>
-        <div class="field"><label>Cliente</label><input id="da-cliente" type="text" value="${escDoc(d.cliente||'')}"></div>
+        <div class="field" style="grid-column:1/-1"><label>Cliente / Proyecto</label><input id="da-cliente" type="text" value="${escDoc(d.cliente||'')}"></div>
+        <div class="field"><label>Tipo</label>
+          <select id="da-tipo">
+            <option value="archivo" ${tipoActual==='archivo'?'selected':''}>Archivo</option>
+            <option value="presupuesto" ${tipoActual==='presupuesto'?'selected':''}>Presupuesto</option>
+            <option value="contrato" ${tipoActual==='contrato'?'selected':''}>Contrato</option>
+          </select>
+        </div>
         <div class="field"><label>Estado</label><select id="da-estado">${ESTADOS_DOC.map(e=>`<option ${e===d.estado?'selected':''}>${e}</option>`).join('')}</select></div>
         <div class="field" style="grid-column:1/-1"><label>Archivo</label><input type="text" value="${escDoc(d.archivo_nombre||'adjunto')}" disabled></div>
       </div>`;
-    editandoTipoDoc = 'archivo';
+    editandoTipoDoc = 'subido';
   } else if(d.tipo === 'presupuesto'){
     const c = migrarContenidoPresupuesto(d.contenido);
     document.getElementById('modal-doc-title').textContent = `Presupuesto ${d.numero}`;
@@ -799,7 +807,7 @@ async function abrirEditarDocumento(id){
   const btnDl = document.getElementById('btn-descargar-doc');
   const btnVista = document.getElementById('btn-vista-doc');
   if(btnDl) btnDl.style.display = '';
-  if(btnVista) btnVista.style.display = editandoTipoDoc === 'archivo' ? 'none' : '';
+  if(btnVista) btnVista.style.display = (editandoTipoDoc === 'archivo' || editandoTipoDoc === 'subido') ? 'none' : '';
 }
 
 function cerrarModalDocumento(){
@@ -809,17 +817,19 @@ function cerrarModalDocumento(){
 
 async function guardarDocumento(){
   if(!requiereSupabase()) return;
-  const tipo = editandoTipoDoc;
+  let tipo = editandoTipoDoc;
   let numero, fecha, cliente, estado, proyecto, contenido, origen, archivo_nombre, archivo_mime;
 
-  if(tipo === 'archivo'){
+  const esSubido = editandoTipoDoc === 'subido' || editandoTipoDoc === 'archivo' || document.getElementById('da-tipo');
+  if(esSubido){
     numero = (document.getElementById('da-numero')?.value || '').trim();
     fecha = document.getElementById('da-fecha')?.value;
     cliente = (document.getElementById('da-cliente')?.value || '').trim();
     estado = document.getElementById('da-estado')?.value;
+    tipo = document.getElementById('da-tipo')?.value || tipo || 'archivo';
     proyecto = null;
-    contenido = {};
     origen = 'subido';
+    contenido = null;
   } else {
     const esPres = tipo === 'presupuesto';
     numero = (document.getElementById(esPres ? 'dp-numero' : 'dc-numero')?.value || '').trim();
@@ -840,9 +850,10 @@ async function guardarDocumento(){
 
   const row = {
     tipo: tipo === 'archivo' ? 'archivo' : tipo,
-    numero, cliente, proyecto, fecha, estado, contenido, origen,
+    numero, cliente, proyecto, fecha, estado, origen,
     updated_at: new Date().toISOString()
   };
+  if(contenido != null) row.contenido = contenido;
   if(!editandoDocumentoId) row.created_by = nombreSocioDoc();
   if(archivo_nombre != null){ row.archivo_nombre = archivo_nombre; row.archivo_mime = archivo_mime; }
   if(typeof resolverClienteIdPorNombre === 'function'){
@@ -907,7 +918,7 @@ async function duplicarDocumento(id){
 async function abrirSubirDocumento(){
   if(!requiereSupabase()) return;
   pendienteSubida = null;
-  document.getElementById('up-numero').value = await proximoNumeroDoc('archivo');
+  document.getElementById('up-numero').value = await proximoNumeroDoc(document.getElementById('up-tipo')?.value || 'archivo');
   document.getElementById('up-fecha').value = new Date().toISOString().slice(0, 10);
   document.getElementById('up-cliente').value = '';
   document.getElementById('up-tipo').value = 'archivo';
@@ -921,8 +932,20 @@ function cerrarSubirDocumento(){
   pendienteSubida = null;
 }
 
+async function onTipoSubidaChange(){
+  const el = document.getElementById('up-numero');
+  if(!el) return;
+  const cur = el.value || '';
+  if(!cur || /^[ANC]\d+$/i.test(cur)){
+    el.value = await proximoNumeroDoc(document.getElementById('up-tipo')?.value || 'archivo');
+  }
+}
+
+let subiendoDocumento = false;
+
 async function guardarSubidaDocumento(){
   if(!requiereSupabase()) return;
+  if(subiendoDocumento) return;
   const file = document.getElementById('up-file')?.files?.[0];
   const numero = (document.getElementById('up-numero')?.value || '').trim();
   const cliente = (document.getElementById('up-cliente')?.value || '').trim();
@@ -932,38 +955,47 @@ async function guardarSubidaDocumento(){
   if(!file || !numero || !cliente || !fecha){ toast('Completá datos y elegí un archivo'); return; }
   if(file.size > 4 * 1024 * 1024){ toast('Máximo 4 MB'); return; }
 
-  const dataUrl = await new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(r.result);
-    r.onerror = reject;
-    r.readAsDataURL(file);
-  });
+  subiendoDocumento = true;
+  const btn = document.querySelector('#modal-subir-doc .btn-success');
+  if(btn){ btn.disabled = true; btn.textContent = 'Subiendo…'; }
 
-  const row = {
-    tipo,
-    numero,
-    cliente,
-    fecha,
-    estado,
-    origen: 'subido',
-    archivo_nombre: file.name,
-    archivo_mime: file.type || 'application/octet-stream',
-    contenido: { archivoData: dataUrl },
-    created_by: nombreSocioDoc()
-  };
-  if(typeof resolverClienteIdPorNombre === 'function'){
-    const cid = await resolverClienteIdPorNombre(cliente);
-    if(cid) row.cliente_id = cid;
+  try {
+    const dataUrl = await new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result);
+      r.onerror = reject;
+      r.readAsDataURL(file);
+    });
+
+    const row = {
+      tipo,
+      numero,
+      cliente,
+      fecha,
+      estado,
+      origen: 'subido',
+      archivo_nombre: file.name,
+      archivo_mime: file.type || 'application/octet-stream',
+      contenido: { archivoData: dataUrl },
+      created_by: nombreSocioDoc()
+    };
+    if(typeof resolverClienteIdPorNombre === 'function'){
+      const cid = await resolverClienteIdPorNombre(cliente);
+      if(cid) row.cliente_id = cid;
+    }
+    let { error } = await sb.from('documentos').insert(row);
+    if(error && esColumnaFaltante(error, 'cliente_id')){
+      delete row.cliente_id;
+      ({ error } = await sb.from('documentos').insert(row));
+    }
+    if(error){ toast(supabaseErrMsg(error)); return; }
+    toast('Archivo subido');
+    cerrarSubirDocumento();
+    await cargarDocumentos();
+  } finally {
+    subiendoDocumento = false;
+    if(btn){ btn.disabled = false; btn.textContent = 'Subir'; }
   }
-  let { error } = await sb.from('documentos').insert(row);
-  if(error && esColumnaFaltante(error, 'cliente_id')){
-    delete row.cliente_id;
-    ({ error } = await sb.from('documentos').insert(row));
-  }
-  if(error){ toast(supabaseErrMsg(error)); return; }
-  toast('Archivo subido');
-  cerrarSubirDocumento();
-  await cargarDocumentos();
 }
 
 // ─── HTML de marca CM ────────────────────────────────────────────
