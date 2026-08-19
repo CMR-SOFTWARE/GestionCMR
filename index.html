@@ -511,8 +511,21 @@
         <div class="field"><label>Teléfono / WhatsApp</label><input id="info-tel-empresa" type="text" placeholder="3364 57-8599"></div>
         <div class="field"><label>Email empresa</label><input id="info-email-empresa" type="email" placeholder="contacto@…"></div>
         <div class="field"><label>Ubicación</label><input id="info-ubicacion" type="text" placeholder="San Nicolás de los Arroyos…"></div>
-        <div class="field"><label>Logo URL (opcional)</label><input id="info-logo-url" type="url" placeholder="https://…"></div>
         <div class="field"><label>Color marca</label><input id="info-color-marca" type="color" value="#0a9d8f" style="height:44px;padding:4px"></div>
+        <div class="field" style="grid-column:1/-1"><label>Logo</label>
+          <div class="logo-upload">
+            <div class="logo-preview-wrap">
+              <img id="info-logo-preview" alt="Logo CMR" style="display:none">
+              <span id="info-logo-placeholder" class="logo-preview-ph">Sin logo</span>
+            </div>
+            <div>
+              <input type="hidden" id="info-logo-url">
+              <input type="file" id="info-logo-file" accept="image/png,image/jpeg,image/webp,image/svg+xml,.png,.jpg,.jpeg,.webp,.svg" onchange="onLogoMarcaFile(event)">
+              <p class="info-hint" style="margin:6px 0 0">Subilo desde la PC (PNG, JPG o WebP, máx. 2 MB). Se usa en presupuestos, contratos y recibos.</p>
+              <button type="button" class="btn-ghost-edit" onclick="quitarLogoMarca()">Quitar logo</button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
     <div class="panel">

@@ -196,6 +196,7 @@ function poblarFormularioInformacion(){
   set('info-email-empresa', c.email_empresa || DEFAULT_CONFIG.email_empresa);
   set('info-ubicacion', c.ubicacion_empresa || DEFAULT_CONFIG.ubicacion_empresa);
   set('info-logo-url', c.logo_url || '');
+  actualizarPreviewLogo(c.logo_url || '');
   set('info-color-marca', c.color_marca || DEFAULT_CONFIG.color_marca);
   set('info-msg-wsp', c.mensaje_wsp_cliente);
   set('info-dias-cliente', c.dias_aviso_cliente ?? 5);
@@ -250,6 +251,93 @@ async function guardarInformacion(){
   aplicarEmailsDesdeConfig(configCMR);
   toast('Configuración guardada');
   await renderPanelRecordatorios();
+}
+
+function actualizarPreviewLogo(src){
+  const img = document.getElementById('info-logo-preview');
+  const ph = document.getElementById('info-logo-placeholder');
+  if(!img) return;
+  if(!src){
+    img.style.display = 'none';
+    img.removeAttribute('src');
+    if(ph) ph.style.display = 'flex';
+    return;
+  }
+  img.src = src;
+  img.style.display = 'block';
+  if(ph) ph.style.display = 'none';
+}
+
+function quitarLogoMarca(){
+  const hidden = document.getElementById('info-logo-url');
+  const file = document.getElementById('info-logo-file');
+  if(hidden) hidden.value = '';
+  if(file) file.value = '';
+  actualizarPreviewLogo('');
+}
+
+function leerArchivoComoDataUrl(file){
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = () => reject(new Error('No se pudo leer el archivo'));
+    r.readAsDataURL(file);
+  });
+}
+
+function redimensionarLogoArchivo(file){
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const max = 480;
+      let w = img.width, h = img.height;
+      if(w > max || h > max){
+        const scale = Math.min(max / w, max / h);
+        w = Math.round(w * scale);
+        h = Math.round(h * scale);
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      if(file.type !== 'image/png'){
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, w, h);
+      }
+      ctx.drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      const png = canvas.toDataURL('image/png');
+      const jpg = canvas.toDataURL('image/jpeg', 0.88);
+      const keepPng = file.type === 'image/png' && png.length < 450000;
+      resolve(keepPng ? png : (jpg.length < png.length ? jpg : png));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('imagen inválida'));
+    };
+    img.src = url;
+  });
+}
+
+async function onLogoMarcaFile(ev){
+  const file = ev.target.files && ev.target.files[0];
+  ev.target.value = '';
+  if(!file) return;
+  if(file.size > 2 * 1024 * 1024){ toast('El logo no puede superar 2 MB'); return; }
+  const esSvg = file.type === 'image/svg+xml' || /\.svg$/i.test(file.name);
+  const esImg = file.type.startsWith('image/') || /\.(png|jpe?g|webp)$/i.test(file.name);
+  if(!esSvg && !esImg){ toast('Usá PNG, JPG, WebP o SVG'); return; }
+  try{
+    const dataUrl = esSvg ? await leerArchivoComoDataUrl(file) : await redimensionarLogoArchivo(file);
+    if(String(dataUrl).length > 900000){ toast('El logo quedó demasiado pesado. Probá una imagen más chica.'); return; }
+    const hidden = document.getElementById('info-logo-url');
+    if(hidden) hidden.value = dataUrl;
+    actualizarPreviewLogo(dataUrl);
+    toast('Logo listo. Guardá la configuración para aplicarlo.');
+  } catch(e){
+    toast('No se pudo leer el logo');
+  }
 }
 
 function mensajeWspCliente(cliente){
