@@ -137,12 +137,15 @@
           </select>
         </div>
       </div>
-      <div class="form-grid form-2" style="margin-top:10px">
+      <div class="form-grid form-3" style="margin-top:10px">
         <div class="field"><label>Cliente</label>
           <select id="mov-cliente"><option value="">— Sin cliente —</option></select>
         </div>
         <div class="field"><label>Monto ($)</label>
           <input id="monto" type="number" placeholder="0.00" min="0" step="0.01">
+        </div>
+        <div class="field"><label>Cotización USD (opcional)</label>
+          <input id="cotizacion-usd" type="number" placeholder="Ej: 1250" min="0" step="0.01" title="Cotización del dólar (blue) del día, si el monto está en ARS y el presupuesto en USD">
         </div>
       </div>
       <div id="doc-presupuesto-wrap" class="field" style="display:none;margin-top:8px;max-width:420px">
@@ -634,12 +637,15 @@
         </select>
       </div>
     </div>
-    <div class="form-grid form-2" style="margin-bottom:10px">
+    <div class="form-grid form-3" style="margin-bottom:10px">
       <div class="field"><label>Fecha</label>
         <input id="em-fecha" type="date">
       </div>
       <div class="field"><label>Cliente</label>
         <select id="em-cliente"><option value="">— Sin cliente —</option></select>
+      </div>
+      <div class="field"><label>Cotización USD (opcional)</label>
+        <input id="em-cotizacion-usd" type="number" placeholder="Ej: 1250" min="0" step="0.01" title="Cotización del dólar (blue) del día, si el monto está en ARS y el presupuesto en USD">
       </div>
     </div>
     <div class="field" id="em-doc-wrap" style="display:none;margin-bottom:10px"><label>Presupuesto vinculado</label>

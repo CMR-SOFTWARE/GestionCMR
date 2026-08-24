@@ -141,6 +141,7 @@ async function agregar(){
   const cat   = document.getElementById('cat').value;
   const tipoPago = document.getElementById('tipo-pago')?.value || 'pago_total';
   const monto = parseFloat(document.getElementById('monto').value);
+  const cotizacionUsd = parseFloat(document.getElementById('cotizacion-usd')?.value);
   const documento_id = leerDocumentoIdMov('');
   if(!desc)         { toast('Completá la descripción'); return; }
   if(!monto||monto<=0){ toast('Ingresá un monto válido'); return; }
@@ -151,6 +152,7 @@ async function agregar(){
   const hoy = new Date().toISOString().slice(0,10);
   const row = { fecha:hoy, tipo, descripcion:desc, categoria:cat, tipo_pago: tipoPago, monto, socio:sesion };
   if(documento_id) row.documento_id = documento_id;
+  if(cotizacionUsd > 0) row.cotizacion_usd = cotizacionUsd;
   const clienteId = await clienteIdParaMovimiento(desc, documento_id, leerClienteIdMov(''));
   if(clienteId) row.cliente_id = clienteId;
 
@@ -159,10 +161,15 @@ async function agregar(){
     delete row.cliente_id;
     ({ error } = await sb.from('movimientos').insert(row));
   }
+  if(error && esColumnaFaltante(error, 'cotizacion_usd')){
+    delete row.cotizacion_usd;
+    ({ error } = await sb.from('movimientos').insert(row));
+  }
   if(error){ toast(supabaseErrMsg(error)); console.error('[Supabase]', error); }
   else{
     document.getElementById('desc').value = '';
     document.getElementById('monto').value = '';
+    document.getElementById('cotizacion-usd').value = '';
     document.getElementById('tipo-pago').value = 'pago_total';
     document.getElementById('doc-presupuesto').value = '';
     const mc = document.getElementById('mov-cliente');
@@ -259,6 +266,7 @@ async function editarMovimiento(id){
   document.getElementById('em-fecha').value = mov.fecha;
   document.getElementById('em-socio').value = mov.socio;
   document.getElementById('em-doc-presupuesto').value = mov.documento_id || '';
+  document.getElementById('em-cotizacion-usd').value = mov.cotizacion_usd || '';
   const emCli = document.getElementById('em-cliente');
   if(emCli) emCli.value = mov.cliente_id ? String(mov.cliente_id) : '';
   toggleDocPresupuestoMov('em-');
@@ -280,19 +288,24 @@ async function guardarMovimiento(){
   const fecha = document.getElementById('em-fecha').value;
   const socio = document.getElementById('em-socio').value;
   const documento_id = leerDocumentoIdMov('em-') || null;
+  const cotizacionUsd = parseFloat(document.getElementById('em-cotizacion-usd')?.value);
   if(!desc){ toast('Completá la descripción'); return; }
   if(!monto||monto<=0){ toast('Ingresá un monto válido'); return; }
   if(!fecha){ toast('Elegí la fecha'); return; }
 
   const btn = document.getElementById('btn-guardar-mov');
   btn.disabled = true; btn.textContent = 'Guardando…';
-  const patch = { tipo, monto, descripcion: desc, categoria: cat, tipo_pago, fecha, socio, documento_id };
+  const patch = { tipo, monto, descripcion: desc, categoria: cat, tipo_pago, fecha, socio, documento_id, cotizacion_usd: cotizacionUsd > 0 ? cotizacionUsd : null };
   const clienteId = await clienteIdParaMovimiento(desc, documento_id, leerClienteIdMov('em-'));
   if(clienteId) patch.cliente_id = clienteId;
   else patch.cliente_id = null;
   let { error } = await sb.from('movimientos').update(patch).eq('id', editandoMovId);
   if(error && esColumnaFaltante(error, 'cliente_id')){
     delete patch.cliente_id;
+    ({ error } = await sb.from('movimientos').update(patch).eq('id', editandoMovId));
+  }
+  if(error && esColumnaFaltante(error, 'cotizacion_usd')){
+    delete patch.cotizacion_usd;
     ({ error } = await sb.from('movimientos').update(patch).eq('id', editandoMovId));
   }
   if(error){ toast(supabaseErrMsg(error)); console.error(error); }

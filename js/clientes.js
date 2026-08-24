@@ -482,6 +482,12 @@ async function abrirFichaCliente(id){
 
   const ingresos = movs.filter(m => m.tipo === 'ingreso');
   const cobrado = ingresos.reduce((s, m) => s + (Number(m.monto) || 0), 0);
+  let cobradoUsd = 0, pagosSinCotizacion = 0;
+  ingresos.forEach(m => {
+    const cot = Number(m.cotizacion_usd) || 0;
+    if(cot > 0) cobradoUsd += (Number(m.monto) || 0) / cot;
+    else pagosSinCotizacion++;
+  });
   const porTipo = {};
   ingresos.forEach(m => {
     const k = m.tipo_pago || 'pago_total';
@@ -498,16 +504,19 @@ async function abrirFichaCliente(id){
     : '<p class="ficha-empty">Sin documentos vinculados.</p>';
 
   const htmlPagos = ingresos.length
-    ? `<div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Descripción</th><th>Pago</th><th style="text-align:right">Monto</th><th></th></tr></thead><tbody>${
+    ? `<div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Descripción</th><th>Pago</th><th style="text-align:right">Monto</th><th style="text-align:right">Cotiz.</th><th style="text-align:right">USD</th><th></th></tr></thead><tbody>${
       ingresos.map(m => {
         fichaPagosById[m.id] = m;
         const telOk = typeof telefonoWhatsApp === 'function' && telefonoWhatsApp(c.contacto);
         const mailOk = !!emailDeContactoCliente(c.contacto);
+        const cot = Number(m.cotizacion_usd) || 0;
         return `<tr>
         <td style="font-size:12px">${esc(m.fecha)}</td>
         <td>${esc(m.descripcion)}</td>
         <td>${typeof badgeTipoPago === 'function' ? badgeTipoPago(m.tipo_pago) : esc(m.tipo_pago || '')}</td>
         <td style="text-align:right;font-weight:600">${fmt(m.monto)}</td>
+        <td style="text-align:right;font-size:12px;color:var(--text2)">${cot ? cot.toLocaleString('es-AR') : '—'}</td>
+        <td style="text-align:right;font-size:12px;color:var(--text2)">${cot ? fmtUsdFicha((Number(m.monto)||0)/cot) : '—'}</td>
         <td>
           <div class="ficha-recibo-actions">
             <button type="button" class="ficha-link" onclick="verReciboPago(${m.id})" title="Ver e imprimir recibo">Recibo</button>
@@ -555,14 +564,23 @@ async function abrirFichaCliente(id){
     htmlProy = bloques.join('');
   }
 
+  const pendienteUsd = presupuestado ? Math.max(presupuestado - cobradoUsd, 0) : 0;
+  const htmlUsdCards = presupuestado ? `
+        <div class="ficha-cc-card"><div class="ficha-cc-label">Cobrado (USD aprox.)</div><div class="ficha-cc-val val-green">${fmtUsdFicha(cobradoUsd)}</div></div>
+        <div class="ficha-cc-card"><div class="ficha-cc-label">Pendiente (USD aprox.)</div><div class="ficha-cc-val">${fmtUsdFicha(pendienteUsd)}</div></div>` : '';
+  const hintCotizacion = pagosSinCotizacion
+    ? `${pagosSinCotizacion} pago(s) sin cotización cargada — el equivalente en USD es aproximado. Cargala al editar el movimiento.`
+    : 'Presupuesto en USD y cobros en ARS: el equivalente se calcula con la cotización cargada en cada pago.';
+
   body.innerHTML = `
     <section class="ficha-sec">
       <h3>Cuenta corriente</h3>
       <div class="ficha-cc">
         <div class="ficha-cc-card"><div class="ficha-cc-label">Total presupuestado</div><div class="ficha-cc-val">${presupuestado ? fmtUsdFicha(presupuestado) : '—'}</div></div>
         <div class="ficha-cc-card"><div class="ficha-cc-label">Total cobrado</div><div class="ficha-cc-val val-green">${fmt(cobrado)}</div></div>
+        ${htmlUsdCards}
       </div>
-      <p class="info-hint" style="margin:0">Presupuesto en USD y cobros en ARS se muestran aparte (aún no hay tipo de cambio automático).</p>
+      <p class="info-hint" style="margin:0">${esc(hintCotizacion)}</p>
       ${tiposHtml}
     </section>
     <section class="ficha-sec">
