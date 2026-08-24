@@ -752,6 +752,7 @@ async function abrirNuevoDocumento(tipo){
   const btnVista = document.getElementById('btn-vista-doc');
   if(btnDl) btnDl.style.display = 'none';
   if(btnVista) btnVista.style.display = '';
+  toggleDocIaToolbar();
 }
 
 async function abrirEditarDocumento(id){
@@ -808,11 +809,93 @@ async function abrirEditarDocumento(id){
   const btnVista = document.getElementById('btn-vista-doc');
   if(btnDl) btnDl.style.display = '';
   if(btnVista) btnVista.style.display = (editandoTipoDoc === 'archivo' || editandoTipoDoc === 'subido') ? 'none' : '';
+  toggleDocIaToolbar();
 }
 
 function cerrarModalDocumento(){
   document.getElementById('modal-documento')?.classList.remove('open');
   editandoDocumentoId = null;
+}
+
+function toggleDocIaToolbar(){
+  const el = document.getElementById('doc-ia-toolbar');
+  if(el) el.style.display = (editandoTipoDoc === 'presupuesto' || editandoTipoDoc === 'contrato') ? 'block' : 'none';
+}
+
+let autocompletandoDoc = false;
+
+async function autocompletarDesdeArchivo(file){
+  if(!file) return;
+  if(!requiereSupabase()) return;
+  if(editandoTipoDoc !== 'presupuesto' && editandoTipoDoc !== 'contrato'){
+    toast('Solo disponible para presupuestos y contratos');
+    return;
+  }
+  if(file.type !== 'application/pdf'){ toast('Elegí un archivo PDF'); return; }
+  if(file.size > 8 * 1024 * 1024){ toast('Máximo 8 MB'); return; }
+  if(autocompletandoDoc) return;
+  autocompletandoDoc = true;
+
+  const btn = document.getElementById('btn-doc-ia');
+  const textoOriginal = btn?.textContent;
+  if(btn){ btn.disabled = true; btn.textContent = 'Leyendo PDF…'; }
+
+  try {
+    const dataUrl = await new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result);
+      r.onerror = reject;
+      r.readAsDataURL(file);
+    });
+    const base64 = String(dataUrl).split(',')[1] || '';
+
+    const cfg = window.SUPABASE_CONFIG;
+    const res = await fetch(`${cfg.url}/functions/v1/autocompletar-documento`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${cfg.anonKey}`, 'apikey': cfg.anonKey },
+      body: JSON.stringify({ tipo: editandoTipoDoc, pdfBase64: base64, mimeType: file.type })
+    });
+    const data = await res.json();
+    if(!res.ok || data.error){
+      toast('No se pudo leer el PDF: ' + (data?.error || 'error desconocido'));
+      return;
+    }
+    aplicarDatosExtraidosDoc(data);
+    toast('Datos completados desde el PDF — revisalos antes de guardar');
+  } catch(e){
+    console.error('[autocompletar PDF]', e);
+    toast('Error al leer el PDF');
+  } finally {
+    autocompletandoDoc = false;
+    if(btn){ btn.disabled = false; btn.textContent = textoOriginal || '📄 Autocompletar desde PDF'; }
+    const inputFile = document.getElementById('doc-ia-file');
+    if(inputFile) inputFile.value = '';
+  }
+}
+
+function aplicarDatosExtraidosDoc(d){
+  const esPres = editandoTipoDoc === 'presupuesto';
+  const numId = esPres ? 'dp-numero' : 'dc-numero';
+  const fechaId = esPres ? 'dp-fecha' : 'dc-fecha';
+  const clienteId = esPres ? 'dp-cliente' : 'dc-cliente';
+  const estadoId = esPres ? 'dp-estado' : 'dc-estado';
+  const numeroActual = document.getElementById(numId)?.value || '';
+  const fechaActual = document.getElementById(fechaId)?.value || '';
+  const estadoActual = document.getElementById(estadoId)?.value || '';
+
+  const contenido = esPres ? migrarContenidoPresupuesto(d.contenido || {}) : migrarContenidoContrato(d.contenido || {});
+  document.getElementById('modal-doc-body').innerHTML = esPres ? renderFormPresupuesto(contenido) : renderFormContrato(contenido);
+
+  const numEl = document.getElementById(numId);
+  if(numEl) numEl.value = numeroActual;
+  const fechaEl = document.getElementById(fechaId);
+  if(fechaEl) fechaEl.value = d.fecha || fechaActual;
+  const clienteEl = document.getElementById(clienteId);
+  if(clienteEl) clienteEl.value = d.cliente || '';
+  const estadoEl = document.getElementById(estadoId);
+  if(estadoEl) estadoEl.value = estadoActual || 'Borrador';
+
+  recalcPorcentajesPagos(esPres ? 'dp' : 'dc');
 }
 
 async function guardarDocumento(){
