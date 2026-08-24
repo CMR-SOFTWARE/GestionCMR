@@ -639,15 +639,23 @@ function datosRecibo(movId){
   return { cliente, mov };
 }
 
+function equivalenteUsdRecibo(mov){
+  const cot = Number(mov.cotizacion_usd) || 0;
+  if(!cot) return null;
+  return { cot, usd: (Number(mov.monto) || 0) / cot };
+}
+
 function textoReciboPago(cliente, mov){
   const m = typeof marcaCMR === 'function' ? marcaCMR() : { empresa:'CMR Software Solutions', telefono:'3364 57-8599' };
+  const eq = equivalenteUsdRecibo(mov);
+  const lineaUsd = eq ? `\nEquivalente: ${fmtUsdFicha(eq.usd)} (cotización $ ${eq.cot.toLocaleString('es-AR')})` : '';
   return `Hola ${cliente.nombre}, te enviamos el recibo de cobro de ${m.empresa}.
 
 N° ${nroReciboPago(mov)}
 Fecha: ${fmtFechaRecibo(mov.fecha)}
 Concepto: ${mov.descripcion}
 Tipo: ${labelTipoPagoRecibo(mov.tipo_pago)}
-Monto: ${fmt(mov.monto)}
+Monto: ${fmt(mov.monto)}${lineaUsd}
 
 ¡Gracias! WhatsApp CMR: ${m.telefono}`;
 }
@@ -661,6 +669,7 @@ function buildHTMLRecibo(cliente, mov){
   };
   const nro = nroReciboPago(mov);
   const socio = (typeof USUARIOS !== 'undefined' && USUARIOS[mov.socio]?.nombre) || mov.socio || '';
+  const eq = equivalenteUsdRecibo(mov);
   const logo = m.logoUrl
     ? `<img src="${esc(m.logoUrl)}" alt="${esc(m.empresa)}" style="height:42px">`
     : `<div class="logo">${esc(m.logoText || 'CM')}</div>`;
@@ -699,6 +708,7 @@ function buildHTMLRecibo(cliente, mov){
       <tbody><tr><td>${esc(mov.descripcion)}</td><td>${esc(labelTipoPagoRecibo(mov.tipo_pago))}</td><td style="text-align:right;font-weight:700">${fmt(mov.monto)}</td></tr></tbody>
     </table>
     <div class="total"><span>Total cobrado</span><span>${fmt(mov.monto)}</span></div>
+    ${eq ? `<p class="nota" style="margin-top:10px;font-size:13px;color:${m.colorOscuro}">Equivalente: <strong>${esc(fmtUsdFicha(eq.usd))}</strong> (cotización $ ${esc(eq.cot.toLocaleString('es-AR'))})</p>` : ''}
     <p class="nota">Comprobante interno de cobro de ${esc(m.empresa)}. No válido como factura fiscal.</p>
   </div>
 </div>
