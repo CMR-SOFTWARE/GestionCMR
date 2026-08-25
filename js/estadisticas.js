@@ -203,7 +203,11 @@ async function cargarEstadisticas(){
   let vig=0;
   clisLista.forEach(c => { if(estadoCliente(c).key==='vigente') vig++; });
   document.getElementById('st-cli-vig').textContent = vig;
-  renderClientesEnDesarrollo(listarClientesEnDesarrollo(clisLista, movProyecto, documentos));
+  const clientesDesarrollo = listarClientesEnDesarrollo(clisLista, movProyecto, documentos);
+  renderClientesEnDesarrollo(clientesDesarrollo);
+  ultimoResumenEstadisticas = construirResumenEstadisticas({
+    meses, porMes, ingMes, gasMes, bal, clientesVigentes: vig, clientesDesarrollo, mov
+  });
   renderChartMeses(meses, porMes);
   const mesesCli = mesesParaGraficoClientes(clisLista);
   const porMesCli = contarCobrosMantenimientoPorMes(mov, mesesCli);
@@ -292,21 +296,82 @@ function renderTablaRank(tbodyId, rows, total){
   }).join('');
 }
 
-function renderTablaCatGas(mov){
+function catGastosRows(mov){
   const cats = {};
   mov.filter(r=>r.tipo==='gasto').forEach(r=>{ cats[r.categoria]=(cats[r.categoria]||0)+Number(r.monto); });
-  const rows = Object.entries(cats).sort((a,b)=>b[1]-a[1]);
-  const total = rows.reduce((s,[,v])=>s+v,0);
-  renderTablaRank('tabla-cat-gas', rows, total);
+  return Object.entries(cats).sort((a,b)=>b[1]-a[1]);
 }
 
-function renderTablaSocioIng(mov){
+function socioIngresosRows(mov){
   const socios = {};
   mov.filter(r=>r.tipo==='ingreso').forEach(r=>{
     const n = USUARIOS[r.socio]?.nombre || r.socio;
     socios[n]=(socios[n]||0)+Number(r.monto);
   });
-  const rows = Object.entries(socios).sort((a,b)=>b[1]-a[1]);
+  return Object.entries(socios).sort((a,b)=>b[1]-a[1]);
+}
+
+function renderTablaCatGas(mov){
+  const rows = catGastosRows(mov);
+  const total = rows.reduce((s,[,v])=>s+v,0);
+  renderTablaRank('tabla-cat-gas', rows, total);
+}
+
+function renderTablaSocioIng(mov){
+  const rows = socioIngresosRows(mov);
   const total = rows.reduce((s,[,v])=>s+v,0);
   renderTablaRank('tabla-socio-ing', rows, total);
+}
+
+// ─── Análisis con IA ─────────────────────
+let ultimoResumenEstadisticas = '';
+let iaStatsVisible = false;
+
+function construirResumenEstadisticas({ meses, porMes, ingMes, gasMes, bal, clientesVigentes, clientesDesarrollo, mov }){
+  const serie = meses.map(m => `${labelMes(m)}: ingresos $${Math.round(porMes[m].ing)}, gastos $${Math.round(porMes[m].gas)}`).join('\n');
+  const desarrollo = clientesDesarrollo.length
+    ? clientesDesarrollo.map(c => `${c.label}: cobrado a cuenta $${Math.round(c.cobrado)}`).join('\n')
+    : 'Ninguno';
+  const catTxt = catGastosRows(mov).map(([k,v])=>`${k}: $${Math.round(v)}`).join(', ') || 'Sin datos';
+  const socioTxt = socioIngresosRows(mov).map(([k,v])=>`${k}: $${Math.round(v)}`).join(', ') || 'Sin datos';
+
+  return `Empresa de desarrollo de software, 3 socios, San Nicolás de los Arroyos, Argentina.
+Mes actual — Ingresos: $${Math.round(ingMes)}. Gastos: $${Math.round(gasMes)}. Balance: $${Math.round(bal)}.
+Clientes vigentes (mantenimiento activo): ${clientesVigentes}.
+
+Serie ingresos/gastos por mes (últimos ${meses.length} meses):
+${serie}
+
+Gastos por categoría (histórico consultado): ${catTxt}
+Ingresos por socio (histórico consultado): ${socioTxt}
+
+Clientes en desarrollo (proyectos en curso, sin mantenimiento mensual todavía):
+${desarrollo}`;
+}
+
+function toggleIAEstadisticas(){
+  const box = document.getElementById('st-ia-box');
+  if(!box) return;
+  iaStatsVisible = !iaStatsVisible;
+  if(!iaStatsVisible){ box.style.display='none'; return; }
+  box.style.display='block';
+  analizarIAEstadisticas();
+}
+
+async function analizarIAEstadisticas(){
+  const txtEl = document.getElementById('st-ia-text');
+  if(!txtEl) return;
+  txtEl.className='ia-loading'; txtEl.textContent='Analizando estadísticas…';
+  if(!ultimoResumenEstadisticas){ txtEl.className=''; txtEl.textContent='No hay datos suficientes para analizar.'; return; }
+  try{
+    const cfg = window.SUPABASE_CONFIG;
+    const res = await fetch(`${cfg.url}/functions/v1/analizar-financiero`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${cfg.anonKey}`,'apikey':cfg.anonKey},
+      body:JSON.stringify({resumen: ultimoResumenEstadisticas})
+    });
+    const data = await res.json();
+    if(!res.ok || data.error){ txtEl.className=''; txtEl.textContent='No se pudo generar el análisis.'; return; }
+    txtEl.className=''; txtEl.textContent=data.texto||'Sin respuesta.';
+  }catch(e){ txtEl.className=''; txtEl.textContent='Error al conectar con la IA.'; }
 }

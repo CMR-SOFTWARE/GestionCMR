@@ -310,6 +310,14 @@
       <div class="panel"><div class="panel-title" style="margin-bottom:1rem">Gastos por categoría</div><div class="table-wrap"><table><thead><tr><th>Categoría</th><th style="text-align:right">Total</th><th style="text-align:right;width:70px">%</th></tr></thead><tbody id="tabla-cat-gas"></tbody></table></div></div>
       <div class="panel"><div class="panel-title" style="margin-bottom:1rem">Ingresos por socio</div><div class="table-wrap"><table><thead><tr><th>Socio</th><th style="text-align:right">Total</th><th style="text-align:right;width:70px">%</th></tr></thead><tbody id="tabla-socio-ing"></tbody></table></div></div>
     </div>
+    <div class="panel">
+      <div class="bottom-row">
+        <button onclick="toggleIAEstadisticas()" style="background:linear-gradient(135deg,rgba(10,157,143,.08),rgba(26,111,196,.08));border-color:rgba(10,157,143,.25);color:var(--teal)">✦ Analizar con IA</button>
+      </div>
+      <div class="ia-box" id="st-ia-box">
+        <p class="ia-loading" id="st-ia-text">Analizando…</p>
+      </div>
+    </div>
   </div>
   </div>
 
