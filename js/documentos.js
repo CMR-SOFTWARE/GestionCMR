@@ -9,6 +9,7 @@ let editandoDocumentoId = null;
 let editandoTipoDoc = 'presupuesto';
 let buscarDocTimer = null;
 let pendienteSubida = null;
+let archivoAdjuntoDoc = null; // { nombre, mime, dataUrl } | null — PDF adjunto a un presupuesto/contrato generado
 
 const MANT_DEFAULT = 'Corrección de bugs · Actualizaciones menores · Backups · Soporte técnico';
 const MANT_EXCLUYE_DEFAULT = 'No incluye nuevas funcionalidades, rediseños mayores ni integraciones no acordadas.';
@@ -726,6 +727,7 @@ async function abrirNuevoDocumento(tipo){
   if(typeof cargarConfiguracion === 'function' && !configCMR) await cargarConfiguracion();
   editandoDocumentoId = null;
   editandoTipoDoc = tipo === 'contrato' ? 'contrato' : 'presupuesto';
+  archivoAdjuntoDoc = null;
   const numero = await proximoNumeroDoc(editandoTipoDoc);
   const hoy = new Date().toISOString().slice(0, 10);
   const titulo = document.getElementById('modal-doc-title');
@@ -753,6 +755,7 @@ async function abrirNuevoDocumento(tipo){
   if(btnDl) btnDl.style.display = 'none';
   if(btnVista) btnVista.style.display = '';
   toggleDocIaToolbar();
+  renderAdjuntoDoc();
 }
 
 async function abrirEditarDocumento(id){
@@ -762,6 +765,9 @@ async function abrirEditarDocumento(id){
   if(error || !d){ toast('No se pudo cargar el documento'); return; }
   editandoDocumentoId = id;
   editandoTipoDoc = d.tipo;
+  archivoAdjuntoDoc = (d.archivo_nombre && d.contenido?.archivoAdjunto)
+    ? { nombre: d.archivo_nombre, mime: d.archivo_mime || 'application/pdf', dataUrl: d.contenido.archivoAdjunto }
+    : null;
 
   if(d.origen === 'subido' || d.tipo === 'archivo' || d.contenido?.archivoData){
     const tipoActual = ['presupuesto', 'contrato', 'archivo'].includes(d.tipo) ? d.tipo : 'archivo';
@@ -810,6 +816,7 @@ async function abrirEditarDocumento(id){
   if(btnDl) btnDl.style.display = '';
   if(btnVista) btnVista.style.display = (editandoTipoDoc === 'archivo' || editandoTipoDoc === 'subido') ? 'none' : '';
   toggleDocIaToolbar();
+  renderAdjuntoDoc();
 }
 
 function cerrarModalDocumento(){
@@ -820,6 +827,32 @@ function cerrarModalDocumento(){
 function toggleDocIaToolbar(){
   const el = document.getElementById('doc-ia-toolbar');
   if(el) el.style.display = (editandoTipoDoc === 'presupuesto' || editandoTipoDoc === 'contrato') ? 'block' : 'none';
+}
+
+function renderAdjuntoDoc(){
+  const el = document.getElementById('doc-ia-adjunto');
+  if(!el) return;
+  if(!archivoAdjuntoDoc){ el.innerHTML = ''; return; }
+  el.innerHTML = `<div class="doc-adjunto-chip" style="display:flex;align-items:center;gap:8px;font-size:13px">
+    <span>📎 ${escDoc(archivoAdjuntoDoc.nombre)}</span>
+    <button type="button" class="ficha-link" onclick="verArchivoAdjuntoDoc()">Ver</button>
+    <button type="button" class="ficha-link" style="color:var(--red)" onclick="quitarArchivoAdjuntoDoc()">Quitar</button>
+  </div>`;
+}
+
+function verArchivoAdjuntoDoc(){
+  if(!archivoAdjuntoDoc) return;
+  const a = document.createElement('a');
+  a.href = archivoAdjuntoDoc.dataUrl;
+  a.target = '_blank';
+  a.rel = 'noopener';
+  a.click();
+}
+
+function quitarArchivoAdjuntoDoc(){
+  archivoAdjuntoDoc = null;
+  renderAdjuntoDoc();
+  toast('Archivo adjunto quitado (se aplica al guardar)');
 }
 
 let autocompletandoDoc = false;
@@ -849,6 +882,9 @@ async function autocompletarDesdeArchivo(file){
     });
     const base64 = String(dataUrl).split(',')[1] || '';
 
+    archivoAdjuntoDoc = { nombre: file.name, mime: file.type, dataUrl: String(dataUrl) };
+    renderAdjuntoDoc();
+
     const cfg = window.SUPABASE_CONFIG;
     const res = await fetch(`${cfg.url}/functions/v1/autocompletar-documento`, {
       method: 'POST',
@@ -857,11 +893,11 @@ async function autocompletarDesdeArchivo(file){
     });
     const data = await res.json();
     if(!res.ok || data.error){
-      toast('No se pudo leer el PDF: ' + (data?.error || 'error desconocido'));
+      toast('Archivo adjuntado. No se pudo autocompletar: ' + (data?.error || 'error desconocido'));
       return;
     }
     aplicarDatosExtraidosDoc(data);
-    toast('Datos completados desde el PDF — revisalos antes de guardar');
+    toast('Archivo adjuntado y datos completados — revisalos antes de guardar');
   } catch(e){
     console.error('[autocompletar PDF]', e);
     toast('Error al leer el PDF');
@@ -921,9 +957,10 @@ async function guardarDocumento(){
     estado = document.getElementById(esPres ? 'dp-estado' : 'dc-estado')?.value;
     proyecto = (document.getElementById(esPres ? 'dp-proyecto' : 'dc-proyecto')?.value || '').trim() || null;
     contenido = esPres ? recolectarPresupuesto() : recolectarContrato();
+    if(archivoAdjuntoDoc) contenido.archivoAdjunto = archivoAdjuntoDoc.dataUrl;
     origen = 'generado';
-    archivo_nombre = null;
-    archivo_mime = null;
+    archivo_nombre = archivoAdjuntoDoc ? archivoAdjuntoDoc.nombre : '';
+    archivo_mime = archivoAdjuntoDoc ? archivoAdjuntoDoc.mime : '';
   }
 
   if(!numero || !cliente || !fecha){ toast('Completá número, cliente y fecha'); return; }

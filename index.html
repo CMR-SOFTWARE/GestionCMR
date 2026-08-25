@@ -752,7 +752,8 @@
     <div class="doc-ia-toolbar" id="doc-ia-toolbar" style="display:none;margin-bottom:12px">
       <input type="file" id="doc-ia-file" accept="application/pdf" style="display:none" onchange="autocompletarDesdeArchivo(this.files[0])">
       <button type="button" class="btn-ghost-edit" id="btn-doc-ia" onclick="document.getElementById('doc-ia-file').click()">📄 Autocompletar desde PDF</button>
-      <p class="info-hint" style="margin:4px 0 0">Subí el presupuesto o contrato en PDF y la IA completa los campos. Revisalos antes de guardar.</p>
+      <p class="info-hint" style="margin:4px 0 0">Subí el presupuesto o contrato en PDF: se adjunta al documento y la IA completa los campos. Revisalos antes de guardar.</p>
+      <div id="doc-ia-adjunto" style="margin-top:8px"></div>
     </div>
     <div id="modal-doc-body"></div>
     <div class="modal-footer">
