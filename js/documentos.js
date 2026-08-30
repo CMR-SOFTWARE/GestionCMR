@@ -1312,42 +1312,6 @@ function buildHTMLContrato(d, cRaw){
 </div></body></html>`;
 }
 
-function extraerPartesHtmlPdf(html){
-  let css = '';
-  String(html).replace(/<style[^>]*>([\s\S]*?)<\/style>/gi, (_, block) => { css += block + '\n'; return ''; });
-  const bodyMatch = String(html).match(/<body[^>]*>([\s\S]*)<\/body>/i);
-  return { css, body: bodyMatch ? bodyMatch[1].trim() : String(html) };
-}
-
-async function esperarImagenesPdf(root){
-  const imgs = root.querySelectorAll('img');
-  await Promise.all([...imgs].map(img =>
-    img.complete ? Promise.resolve() : new Promise(res => { img.onload = img.onerror = res; })
-  ));
-  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-  await new Promise(r => setTimeout(r, 250));
-}
-
-async function montarNodoPdfDesdeHtml(html){
-  const { css, body } = extraerPartesHtmlPdf(html);
-  const host = document.createElement('div');
-  host.className = 'pdf-export-host';
-  host.setAttribute('aria-hidden', 'true');
-  host.style.cssText = 'position:fixed;left:0;top:0;width:820px;z-index:999999;transform:translateX(-200vw);background:#fff';
-  if(css){
-    const st = document.createElement('style');
-    st.textContent = css + '\n.pdf-export-host .page{overflow:visible!important}';
-    host.appendChild(st);
-  }
-  const inner = document.createElement('div');
-  inner.innerHTML = body;
-  host.appendChild(inner);
-  document.body.appendChild(host);
-  await esperarImagenesPdf(host);
-  const el = host.querySelector('.page') || inner;
-  return { host, el };
-}
-
 function wrapPaginaDescargable(titulo, htmlBody, nombreArchivo){
   const safeName = (nombreArchivo || 'documento-cmr.html').replace(/[^\w.\-áéíóúñÁÉÍÓÚÑ]+/gi, '_');
   const encoded = btoa(unescape(encodeURIComponent(htmlBody)));
@@ -1361,7 +1325,7 @@ function wrapPaginaDescargable(titulo, htmlBody, nombreArchivo){
   .bar h1{margin:0;font-size:14px;font-weight:700}
   .bar-actions{display:flex;gap:8px;flex-wrap:wrap}
   .bar button{height:36px;padding:0 14px;border:none;border-radius:8px;font-weight:700;font-size:12px;cursor:pointer;font-family:inherit}
-  .btn-dl{background:#07b5a5;color:#fff}.btn-pdf{background:#c53030;color:#fff}.btn-print{background:#1a6fc4;color:#fff}.btn-close{background:rgba(255,255,255,.12);color:#fff}
+  .btn-dl{background:#07b5a5;color:#fff}.btn-print{background:#1a6fc4;color:#fff}.btn-close{background:rgba(255,255,255,.12);color:#fff}
   .frame{max-width:900px;margin:20px auto;background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(13,27,46,.08)}
   iframe{width:100%;min-height:80vh;border:0;display:block}
   @media print{.bar{display:none!important}.frame{margin:0;border:none;box-shadow:none;border-radius:0}iframe{min-height:auto}}
@@ -1369,75 +1333,24 @@ function wrapPaginaDescargable(titulo, htmlBody, nombreArchivo){
 <div class="bar">
   <h1>${titulo}</h1>
   <div class="bar-actions">
-    <button class="btn-dl" id="btn-descargar">↓ HTML</button>
-    <button class="btn-pdf" id="btn-pdf">↓ PDF</button>
-    <button class="btn-print" id="btn-imprimir">🖨 Imprimir</button>
+    <button class="btn-dl" id="btn-descargar">↓ Descargar HTML</button>
+    <button class="btn-print" id="btn-imprimir">🖨 Imprimir / PDF</button>
     <button class="btn-close" onclick="window.close()">Cerrar</button>
   </div>
 </div>
 <div class="frame"><iframe id="preview" title="Vista previa"></iframe></div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"><\/script>
 <script>
 (function(){
   var html = decodeURIComponent(escape(atob('${encoded}')));
   var nombre = ${JSON.stringify(safeName)};
-  var pdfName = nombre.replace(/\\.html?$/i, '') + '.pdf';
   var frame = document.getElementById('preview');
   frame.srcdoc = html;
-  function optsPdf(){ return {
-    margin:[8,10,8,10], filename:pdfName,
-    image:{type:'jpeg',quality:0.98},
-    html2canvas:{scale:2,useCORS:true,logging:false,backgroundColor:'#ffffff',scrollX:0,scrollY:0},
-    jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}
-  }; }
-  function montarPdfHost(sourceHtml){
-    var host = document.createElement('div');
-    host.style.cssText = 'position:fixed;left:0;top:0;width:820px;z-index:999999;transform:translateX(-200vw);background:#fff';
-    var css = '';
-    sourceHtml.replace(/<style[^>]*>([\\s\\S]*?)<\\/style>/gi, function(_, block){ css += block + '\\n'; return ''; });
-    if(css){
-      var st = document.createElement('style');
-      st.textContent = css + '\\n.page{overflow:visible!important}';
-      host.appendChild(st);
-    }
-    var bodyMatch = sourceHtml.match(/<body[^>]*>([\\s\\S]*)<\\/body>/i);
-    var inner = document.createElement('div');
-    inner.innerHTML = bodyMatch ? bodyMatch[1] : sourceHtml;
-    host.appendChild(inner);
-    document.body.appendChild(host);
-    return { host: host, el: host.querySelector('.page') || inner };
-  }
-  function esperarImgs(root){
-    var imgs = root.querySelectorAll('img');
-    return Promise.all(Array.prototype.map.call(imgs, function(img){
-      if(img.complete) return Promise.resolve();
-      return new Promise(function(res){ img.onload = img.onerror = res; });
-    })).then(function(){
-      return new Promise(function(r){ setTimeout(r, 250); });
-    });
-  }
   document.getElementById('btn-descargar').onclick = function(){
     var blob = new Blob([html], {type:'text/html;charset=utf-8'});
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
     a.href = url; a.download = nombre; a.click();
     setTimeout(function(){ URL.revokeObjectURL(url); }, 1200);
-  };
-  document.getElementById('btn-pdf').onclick = function(){
-    var btn = this;
-    if(typeof html2pdf === 'undefined'){ alert('No se pudo generar el PDF'); return; }
-    btn.disabled = true; btn.textContent = 'Generando…';
-    var mounted = montarPdfHost(html);
-    esperarImgs(mounted.host).then(function(){
-      return html2pdf().set(optsPdf()).from(mounted.el).save();
-    }).then(function(){
-      mounted.host.remove();
-      btn.disabled = false; btn.textContent = '↓ PDF';
-    }).catch(function(){
-      mounted.host.remove();
-      btn.disabled = false; btn.textContent = '↓ PDF';
-      alert('Error al generar PDF');
-    });
   };
   document.getElementById('btn-imprimir').onclick = function(){
     try{ var w = frame.contentWindow; if(w) w.focus(), w.print(); else window.print(); }
@@ -1458,40 +1371,6 @@ function descargarArchivo(nombre, contenido, mime){
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1500);
-}
-
-function nombrePdfDesdeHtml(nombre){
-  return String(nombre || 'documento-cmr.html').replace(/\.html?$/i, '') + '.pdf';
-}
-
-function opcionesPdfExport(filename){
-  return {
-    margin: [8, 10, 8, 10],
-    filename: nombrePdfDesdeHtml(filename),
-    image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff', scrollX: 0, scrollY: 0 },
-    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-  };
-}
-
-async function descargarPdfDesdeHtml(html, nombreArchivo){
-  if(typeof html2pdf === 'undefined'){
-    toast('No se pudo cargar el generador de PDF');
-    return;
-  }
-  toast('Generando PDF…');
-  let host;
-  try {
-    const mounted = await montarNodoPdfDesdeHtml(html);
-    host = mounted.host;
-    await html2pdf().set(opcionesPdfExport(nombreArchivo)).from(mounted.el).save();
-    toast('PDF descargado');
-  } catch(e) {
-    console.error('[PDF]', e);
-    toast('No se pudo generar el PDF');
-  } finally {
-    if(host) host.remove();
-  }
 }
 
 function abrirHtmlVista(titulo, html, nombre){
