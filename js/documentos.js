@@ -1312,6 +1312,42 @@ function buildHTMLContrato(d, cRaw){
 </div></body></html>`;
 }
 
+function extraerPartesHtmlPdf(html){
+  let css = '';
+  String(html).replace(/<style[^>]*>([\s\S]*?)<\/style>/gi, (_, block) => { css += block + '\n'; return ''; });
+  const bodyMatch = String(html).match(/<body[^>]*>([\s\S]*)<\/body>/i);
+  return { css, body: bodyMatch ? bodyMatch[1].trim() : String(html) };
+}
+
+async function esperarImagenesPdf(root){
+  const imgs = root.querySelectorAll('img');
+  await Promise.all([...imgs].map(img =>
+    img.complete ? Promise.resolve() : new Promise(res => { img.onload = img.onerror = res; })
+  ));
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+  await new Promise(r => setTimeout(r, 250));
+}
+
+async function montarNodoPdfDesdeHtml(html){
+  const { css, body } = extraerPartesHtmlPdf(html);
+  const host = document.createElement('div');
+  host.className = 'pdf-export-host';
+  host.setAttribute('aria-hidden', 'true');
+  host.style.cssText = 'position:fixed;left:0;top:0;width:820px;z-index:999999;transform:translateX(-200vw);background:#fff';
+  if(css){
+    const st = document.createElement('style');
+    st.textContent = css + '\n.pdf-export-host .page{overflow:visible!important}';
+    host.appendChild(st);
+  }
+  const inner = document.createElement('div');
+  inner.innerHTML = body;
+  host.appendChild(inner);
+  document.body.appendChild(host);
+  await esperarImagenesPdf(host);
+  const el = host.querySelector('.page') || inner;
+  return { host, el };
+}
+
 function wrapPaginaDescargable(titulo, htmlBody, nombreArchivo){
   const safeName = (nombreArchivo || 'documento-cmr.html').replace(/[^\w.\-áéíóúñÁÉÍÓÚÑ]+/gi, '_');
   const encoded = btoa(unescape(encodeURIComponent(htmlBody)));
@@ -1351,12 +1387,34 @@ function wrapPaginaDescargable(titulo, htmlBody, nombreArchivo){
   function optsPdf(){ return {
     margin:[8,10,8,10], filename:pdfName,
     image:{type:'jpeg',quality:0.98},
-    html2canvas:{scale:2,useCORS:true,logging:false},
+    html2canvas:{scale:2,useCORS:true,logging:false,backgroundColor:'#ffffff',scrollX:0,scrollY:0},
     jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}
   }; }
-  function elPdf(){
-    var doc = frame.contentDocument;
-    return doc && (doc.querySelector('.page') || doc.body);
+  function montarPdfHost(sourceHtml){
+    var host = document.createElement('div');
+    host.style.cssText = 'position:fixed;left:0;top:0;width:820px;z-index:999999;transform:translateX(-200vw);background:#fff';
+    var css = '';
+    sourceHtml.replace(/<style[^>]*>([\\s\\S]*?)<\\/style>/gi, function(_, block){ css += block + '\\n'; return ''; });
+    if(css){
+      var st = document.createElement('style');
+      st.textContent = css + '\\n.page{overflow:visible!important}';
+      host.appendChild(st);
+    }
+    var bodyMatch = sourceHtml.match(/<body[^>]*>([\\s\\S]*)<\\/body>/i);
+    var inner = document.createElement('div');
+    inner.innerHTML = bodyMatch ? bodyMatch[1] : sourceHtml;
+    host.appendChild(inner);
+    document.body.appendChild(host);
+    return { host: host, el: host.querySelector('.page') || inner };
+  }
+  function esperarImgs(root){
+    var imgs = root.querySelectorAll('img');
+    return Promise.all(Array.prototype.map.call(imgs, function(img){
+      if(img.complete) return Promise.resolve();
+      return new Promise(function(res){ img.onload = img.onerror = res; });
+    })).then(function(){
+      return new Promise(function(r){ setTimeout(r, 250); });
+    });
   }
   document.getElementById('btn-descargar').onclick = function(){
     var blob = new Blob([html], {type:'text/html;charset=utf-8'});
@@ -1366,12 +1424,20 @@ function wrapPaginaDescargable(titulo, htmlBody, nombreArchivo){
     setTimeout(function(){ URL.revokeObjectURL(url); }, 1200);
   };
   document.getElementById('btn-pdf').onclick = function(){
-    var btn = this, el = elPdf();
-    if(!el || typeof html2pdf === 'undefined'){ alert('No se pudo generar el PDF'); return; }
+    var btn = this;
+    if(typeof html2pdf === 'undefined'){ alert('No se pudo generar el PDF'); return; }
     btn.disabled = true; btn.textContent = 'Generando…';
-    html2pdf().set(optsPdf()).from(el).save()
-      .then(function(){ btn.disabled = false; btn.textContent = '↓ PDF'; })
-      .catch(function(){ btn.disabled = false; btn.textContent = '↓ PDF'; alert('Error al generar PDF'); });
+    var mounted = montarPdfHost(html);
+    esperarImgs(mounted.host).then(function(){
+      return html2pdf().set(optsPdf()).from(mounted.el).save();
+    }).then(function(){
+      mounted.host.remove();
+      btn.disabled = false; btn.textContent = '↓ PDF';
+    }).catch(function(){
+      mounted.host.remove();
+      btn.disabled = false; btn.textContent = '↓ PDF';
+      alert('Error al generar PDF');
+    });
   };
   document.getElementById('btn-imprimir').onclick = function(){
     try{ var w = frame.contentWindow; if(w) w.focus(), w.print(); else window.print(); }
@@ -1403,7 +1469,7 @@ function opcionesPdfExport(filename){
     margin: [8, 10, 8, 10],
     filename: nombrePdfDesdeHtml(filename),
     image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: { scale: 2, useCORS: true, logging: false },
+    html2canvas: { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff', scrollX: 0, scrollY: 0 },
     jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
   };
 }
@@ -1414,28 +1480,17 @@ async function descargarPdfDesdeHtml(html, nombreArchivo){
     return;
   }
   toast('Generando PDF…');
-  const iframe = document.createElement('iframe');
-  iframe.setAttribute('aria-hidden', 'true');
-  iframe.style.cssText = 'position:fixed;left:-10000px;top:0;width:820px;height:2400px;border:0;opacity:0;pointer-events:none';
-  document.body.appendChild(iframe);
+  let host;
   try {
-    const doc = iframe.contentDocument || iframe.contentWindow.document;
-    doc.open();
-    doc.write(html);
-    doc.close();
-    await new Promise(r => setTimeout(r, 400));
-    const imgs = doc.querySelectorAll('img');
-    await Promise.all([...imgs].map(img =>
-      img.complete ? Promise.resolve() : new Promise(res => { img.onload = img.onerror = res; })
-    ));
-    const el = doc.querySelector('.page') || doc.body;
-    await html2pdf().set(opcionesPdfExport(nombreArchivo)).from(el).save();
+    const mounted = await montarNodoPdfDesdeHtml(html);
+    host = mounted.host;
+    await html2pdf().set(opcionesPdfExport(nombreArchivo)).from(mounted.el).save();
     toast('PDF descargado');
   } catch(e) {
     console.error('[PDF]', e);
     toast('No se pudo generar el PDF');
   } finally {
-    iframe.remove();
+    if(host) host.remove();
   }
 }
 
