@@ -34,7 +34,7 @@ function nombreSocioDoc(){
 function marcaDoc(){
   return typeof marcaCMR === 'function' ? marcaCMR() : {
     empresa: 'CMR Software Solutions', telefono: '3364 57-8599',
-    email: 'contacto@cmrsoftwaresolutions.com',
+    email: 'cmrsoftware.sn@gmail.com',
     ubicacion: 'San Nicolás de los Arroyos, Buenos Aires, Argentina',
     logoUrl: '', logoText: 'CM', color: '#0a9d8f', colorOscuro: '#0d1b2e'
   };

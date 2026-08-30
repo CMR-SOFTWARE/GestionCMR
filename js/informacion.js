@@ -24,7 +24,7 @@ const DEFAULT_CONFIG = {
   notif_tarea_por_vencer: true,
   notif_tarea_wsp_crear: true,
   notif_tarea_wsp_vencer: true,
-  email_empresa: 'contacto@cmrsoftwaresolutions.com',
+  email_empresa: 'cmrsoftware.sn@gmail.com',
   ubicacion_empresa: 'San Nicolás de los Arroyos, Buenos Aires, Argentina',
   logo_url: '',
   color_marca: '#0a9d8f'

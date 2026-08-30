@@ -679,7 +679,7 @@ Monto: ${fmt(mov.monto)}${lineaUsd}
 function buildHTMLRecibo(cliente, mov){
   const m = typeof marcaCMR === 'function' ? marcaCMR() : {
     empresa:'CMR Software Solutions', telefono:'3364 57-8599',
-    email:'contacto@cmrsoftwaresolutions.com',
+    email:'cmrsoftware.sn@gmail.com',
     ubicacion:'San Nicolás de los Arroyos, Buenos Aires, Argentina',
     color:'#0a9d8f', colorOscuro:'#0d1b2e', logoText:'CM', logoUrl:''
   };
@@ -765,7 +765,7 @@ function textoCuentaCorriente(cliente, cc){
 function buildHTMLCuentaCorriente(cliente, cc){
   const m = typeof marcaCMR === 'function' ? marcaCMR() : {
     empresa:'CMR Software Solutions', telefono:'3364 57-8599',
-    email:'contacto@cmrsoftwaresolutions.com',
+    email:'cmrsoftware.sn@gmail.com',
     ubicacion:'San Nicolás de los Arroyos, Buenos Aires, Argentina',
     color:'#0a9d8f', colorOscuro:'#0d1b2e', logoText:'CM', logoUrl:''
   };
