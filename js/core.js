@@ -2,8 +2,6 @@
 // ══════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════
-const ANTHROPIC_KEY = 'TU_API_KEY_ACÁ';
-
 const USUARIOS = {
   tomi:  { nombre: 'Tomi',  color: '#7f77dd', email: 'tomi@empresa.dev' },
   chipi: { nombre: 'Chipi', color: '#1d9e75', email: 'chipi@empresa.dev' },
@@ -116,7 +114,7 @@ function mostrarApp(){
   av.textContent = u.nombre.charAt(0).toUpperCase();
   av.style.background = u.color;
   document.getElementById('user-name').textContent = u.nombre;
-  verificarSupabase().then(ok => { if(ok){ poblarMeses(); cargarDatos(); cargarClientes(); cargarPresupuestosParaMov(); initTareaForm(); initInformacionApp(); } });
+  verificarSupabase().then(ok => { if(ok){ poblarMeses(); cargarDatos(); cargarClientes(); cargarPresupuestosParaMov(); initTareaForm(); initInformacionApp(); cargarResumenDiario(); } });
   setDefaultFechaVence();
 }
 

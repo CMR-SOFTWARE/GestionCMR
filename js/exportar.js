@@ -25,9 +25,6 @@ function toggleIA(){
 async function analizarIA(){
   const txtEl = document.getElementById('ia-text');
   txtEl.className='ia-loading'; txtEl.textContent='Analizando movimientos…';
-  if(ANTHROPIC_KEY==='TU_API_KEY_ACÁ'){
-    txtEl.className=''; txtEl.textContent='Para usar el análisis con IA, reemplazá TU_API_KEY_ACÁ con tu clave de api.anthropic.com'; return;
-  }
   if(!todosLosDatos.length){ txtEl.className=''; txtEl.textContent='No hay movimientos para analizar.'; return; }
   let ing=0,gas=0; const cats={},porSocio={};
   todosLosDatos.forEach(r=>{
@@ -44,13 +41,14 @@ Movimientos: ${todosLosDatos.length}. Ingresos: $${ing.toFixed(2)}. Gastos: $${g
 Por categoría: ${JSON.stringify(cats)}. Por socio: ${JSON.stringify(porSocio)}.
 Últimos 5: ${JSON.stringify(todosLosDatos.slice(0,5).map(r=>({fecha:r.fecha,tipo:r.tipo,desc:r.descripcion,monto:r.monto})))}`;
   try{
-    const res = await fetch('https://api.anthropic.com/v1/messages',{
+    const cfg = window.SUPABASE_CONFIG;
+    const res = await fetch(`${cfg.url}/functions/v1/analizar-financiero`,{
       method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':ANTHROPIC_KEY,'anthropic-version':'2023-06-01'},
-      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,
-        messages:[{role:'user',content:`Sos el asesor financiero de una empresa tech en Argentina. Analizá estos datos y dá un resumen claro en 4-5 puntos concretos: situación actual, categorías que más pesan, algo positivo y una recomendación accionable. Sin saludos ni títulos, directo al análisis.\n\n${resumen}`}]})
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${cfg.anonKey}`,'apikey':cfg.anonKey},
+      body:JSON.stringify({resumen})
     });
     const data = await res.json();
-    txtEl.className=''; txtEl.textContent=data.content?.[0]?.text||'Sin respuesta.';
+    if(!res.ok || data.error){ txtEl.className=''; txtEl.textContent='No se pudo generar el análisis.'; return; }
+    txtEl.className=''; txtEl.textContent=data.texto||'Sin respuesta.';
   }catch(e){ txtEl.className=''; txtEl.textContent='Error al conectar con la IA.'; }
 }

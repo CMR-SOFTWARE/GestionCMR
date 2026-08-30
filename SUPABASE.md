@@ -41,6 +41,26 @@ Si ya tenías la base creada antes, ejecutá también en el SQL Editor:
 - `supabase/clientes.sql` — tabla de clientes
 - `supabase/tareas.sql` — lista de tareas
 - `supabase/informacion.sql` — configuración CMR, emails del equipo y log de recordatorios
+- `supabase/resumenes-diarios.sql` — caché del resumen diario con IA
+
+## Resumen diario con IA (Gemini)
+
+El resumen del dashboard y el botón "Analizar con IA" llaman a la API de Gemini (tier gratuito) a través de **Supabase Edge Functions** — la app no tiene backend propio, así que la API key nunca puede vivir en el frontend.
+
+1. Instalá la [Supabase CLI](https://supabase.com/docs/guides/cli) si no la tenés, y logueate: `supabase login`
+2. Enlazá el proyecto: `supabase link --project-ref nvducffscqjksmgyzvlu`
+3. Generá una API key gratis en [aistudio.google.com/apikey](https://aistudio.google.com/apikey)
+4. Cargala como secret (nunca la pegues en el código):
+   ```
+   supabase secrets set GEMINI_API_KEY=tu-key-acá
+   ```
+5. Deployá las dos funciones:
+   ```
+   supabase functions deploy resumen-diario
+   supabase functions deploy analizar-financiero
+   ```
+
+El widget "Resumen del día" se genera una vez por día (se cachea en `resumenes_diarios`) y se puede forzar con el botón "↻ Actualizar".
 
 ## Usuarios de prueba
 
