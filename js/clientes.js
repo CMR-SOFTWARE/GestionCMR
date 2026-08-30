@@ -522,6 +522,7 @@ async function abrirFichaCliente(id){
         <td>
           <div class="ficha-recibo-actions">
             <button type="button" class="ficha-link" onclick="verReciboPago(${m.id})" title="Ver e imprimir recibo">Recibo</button>
+            <button type="button" class="ficha-link ficha-link-pdf" onclick="exportarReciboPdf(${m.id})" title="Descargar PDF">PDF</button>
             <button type="button" class="btn-wsp btn-recibo" ${telOk ? '' : 'disabled title="Sin teléfono en Contacto"'} onclick="enviarReciboWhatsApp(${m.id})">WhatsApp</button>
             ${mailOk ? `<button type="button" class="btn-email-info btn-recibo" onclick="enviarReciboEmail(${m.id})">Email</button>` : ''}
           </div>
@@ -585,7 +586,8 @@ async function abrirFichaCliente(id){
       <div class="ficha-sec-head">
         <h3>Cuenta corriente</h3>
         <div class="ficha-share-actions">
-          <button type="button" class="ficha-link" onclick="verCuentaCorriente()" title="Ver e imprimir">Ver / PDF</button>
+          <button type="button" class="ficha-link" onclick="verCuentaCorriente()" title="Ver e imprimir">Ver</button>
+          <button type="button" class="ficha-link ficha-link-pdf" onclick="exportarCuentaCorrientePdf()" title="Descargar PDF">PDF</button>
           <button type="button" class="btn-wsp btn-recibo" ${telCc ? '' : 'disabled title="Sin teléfono en Contacto"'} onclick="compartirCuentaCorrienteWhatsApp()">WhatsApp</button>
           ${mailCc ? `<button type="button" class="btn-email-info btn-recibo" onclick="compartirCuentaCorrienteEmail()">Email</button>` : ''}
         </div>
@@ -851,6 +853,15 @@ function verCuentaCorriente(){
   }
 }
 
+async function exportarCuentaCorrientePdf(){
+  const d = datosCuentaCorriente();
+  if(!d) return;
+  const html = buildHTMLCuentaCorriente(d.cliente, d.cc);
+  const nombre = `CuentaCorriente_${(d.cliente.nombre || 'cliente').replace(/\s+/g,'_')}.html`;
+  if(typeof descargarPdfDesdeHtml === 'function') await descargarPdfDesdeHtml(html, nombre);
+  else verCuentaCorriente();
+}
+
 function compartirCuentaCorrienteWhatsApp(){
   const d = datosCuentaCorriente();
   if(!d) return;
@@ -882,6 +893,15 @@ function verReciboPago(movId){
     if(w){ w.document.write(html); w.document.close(); }
     else toast('Permití popups para ver el recibo');
   }
+}
+
+async function exportarReciboPdf(movId){
+  const d = datosRecibo(movId);
+  if(!d) return;
+  const html = buildHTMLRecibo(d.cliente, d.mov);
+  const nombre = `Recibo_${nroReciboPago(d.mov)}_${(d.cliente.nombre || 'cliente').replace(/\s+/g,'_')}.html`;
+  if(typeof descargarPdfDesdeHtml === 'function') await descargarPdfDesdeHtml(html, nombre);
+  else verReciboPago(movId);
 }
 
 function enviarReciboWhatsApp(movId){

@@ -354,6 +354,8 @@ tbody tr:hover td{background:var(--surface2)}
 .ficha-empty{font-size:13px;color:var(--text3);margin:0}
 .ficha-link{background:none;border:none;color:var(--teal);font-weight:600;cursor:pointer;font-family:inherit;padding:0;font-size:13px}
 .ficha-link:hover{text-decoration:underline}
+.ficha-link-pdf{color:var(--red)}
+.ficha-link-pdf:hover{color:#9b2c2c}
 tr.cliente-row{cursor:pointer}
 tr.cliente-row:hover td{background:var(--surface2)}
 .logo-upload{display:flex;gap:14px;align-items:center;flex-wrap:wrap}

@@ -1325,7 +1325,7 @@ function wrapPaginaDescargable(titulo, htmlBody, nombreArchivo){
   .bar h1{margin:0;font-size:14px;font-weight:700}
   .bar-actions{display:flex;gap:8px;flex-wrap:wrap}
   .bar button{height:36px;padding:0 14px;border:none;border-radius:8px;font-weight:700;font-size:12px;cursor:pointer;font-family:inherit}
-  .btn-dl{background:#07b5a5;color:#fff}.btn-print{background:#1a6fc4;color:#fff}.btn-close{background:rgba(255,255,255,.12);color:#fff}
+  .btn-dl{background:#07b5a5;color:#fff}.btn-pdf{background:#c53030;color:#fff}.btn-print{background:#1a6fc4;color:#fff}.btn-close{background:rgba(255,255,255,.12);color:#fff}
   .frame{max-width:900px;margin:20px auto;background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(13,27,46,.08)}
   iframe{width:100%;min-height:80vh;border:0;display:block}
   @media print{.bar{display:none!important}.frame{margin:0;border:none;box-shadow:none;border-radius:0}iframe{min-height:auto}}
@@ -1333,24 +1333,45 @@ function wrapPaginaDescargable(titulo, htmlBody, nombreArchivo){
 <div class="bar">
   <h1>${titulo}</h1>
   <div class="bar-actions">
-    <button class="btn-dl" id="btn-descargar">↓ Descargar HTML</button>
-    <button class="btn-print" id="btn-imprimir">🖨 Imprimir / PDF</button>
+    <button class="btn-dl" id="btn-descargar">↓ HTML</button>
+    <button class="btn-pdf" id="btn-pdf">↓ PDF</button>
+    <button class="btn-print" id="btn-imprimir">🖨 Imprimir</button>
     <button class="btn-close" onclick="window.close()">Cerrar</button>
   </div>
 </div>
 <div class="frame"><iframe id="preview" title="Vista previa"></iframe></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"><\/script>
 <script>
 (function(){
   var html = decodeURIComponent(escape(atob('${encoded}')));
   var nombre = ${JSON.stringify(safeName)};
+  var pdfName = nombre.replace(/\\.html?$/i, '') + '.pdf';
   var frame = document.getElementById('preview');
   frame.srcdoc = html;
+  function optsPdf(){ return {
+    margin:[8,10,8,10], filename:pdfName,
+    image:{type:'jpeg',quality:0.98},
+    html2canvas:{scale:2,useCORS:true,logging:false},
+    jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}
+  }; }
+  function elPdf(){
+    var doc = frame.contentDocument;
+    return doc && (doc.querySelector('.page') || doc.body);
+  }
   document.getElementById('btn-descargar').onclick = function(){
     var blob = new Blob([html], {type:'text/html;charset=utf-8'});
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
     a.href = url; a.download = nombre; a.click();
     setTimeout(function(){ URL.revokeObjectURL(url); }, 1200);
+  };
+  document.getElementById('btn-pdf').onclick = function(){
+    var btn = this, el = elPdf();
+    if(!el || typeof html2pdf === 'undefined'){ alert('No se pudo generar el PDF'); return; }
+    btn.disabled = true; btn.textContent = 'Generando…';
+    html2pdf().set(optsPdf()).from(el).save()
+      .then(function(){ btn.disabled = false; btn.textContent = '↓ PDF'; })
+      .catch(function(){ btn.disabled = false; btn.textContent = '↓ PDF'; alert('Error al generar PDF'); });
   };
   document.getElementById('btn-imprimir').onclick = function(){
     try{ var w = frame.contentWindow; if(w) w.focus(), w.print(); else window.print(); }
@@ -1371,6 +1392,51 @@ function descargarArchivo(nombre, contenido, mime){
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1500);
+}
+
+function nombrePdfDesdeHtml(nombre){
+  return String(nombre || 'documento-cmr.html').replace(/\.html?$/i, '') + '.pdf';
+}
+
+function opcionesPdfExport(filename){
+  return {
+    margin: [8, 10, 8, 10],
+    filename: nombrePdfDesdeHtml(filename),
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2, useCORS: true, logging: false },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+  };
+}
+
+async function descargarPdfDesdeHtml(html, nombreArchivo){
+  if(typeof html2pdf === 'undefined'){
+    toast('No se pudo cargar el generador de PDF');
+    return;
+  }
+  toast('Generando PDF…');
+  const iframe = document.createElement('iframe');
+  iframe.setAttribute('aria-hidden', 'true');
+  iframe.style.cssText = 'position:fixed;left:-10000px;top:0;width:820px;height:2400px;border:0;opacity:0;pointer-events:none';
+  document.body.appendChild(iframe);
+  try {
+    const doc = iframe.contentDocument || iframe.contentWindow.document;
+    doc.open();
+    doc.write(html);
+    doc.close();
+    await new Promise(r => setTimeout(r, 400));
+    const imgs = doc.querySelectorAll('img');
+    await Promise.all([...imgs].map(img =>
+      img.complete ? Promise.resolve() : new Promise(res => { img.onload = img.onerror = res; })
+    ));
+    const el = doc.querySelector('.page') || doc.body;
+    await html2pdf().set(opcionesPdfExport(nombreArchivo)).from(el).save();
+    toast('PDF descargado');
+  } catch(e) {
+    console.error('[PDF]', e);
+    toast('No se pudo generar el PDF');
+  } finally {
+    iframe.remove();
+  }
 }
 
 function abrirHtmlVista(titulo, html, nombre){
