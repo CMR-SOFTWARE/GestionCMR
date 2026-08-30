@@ -738,20 +738,6 @@ function datosCuentaCorriente(){
   return { cliente, cc };
 }
 
-function lineasModulosHtml(docs){
-  const items = [];
-  (docs || []).filter(d => d.tipo === 'presupuesto').forEach(d => {
-    const c = d.contenido || {};
-    const mods = Array.isArray(c.modulos) && c.modulos.length ? c.modulos : (c.items || []);
-    mods.forEach(m => {
-      const nom = m.nombre || 'Módulo';
-      const prec = m.precio_usd != null ? m.precio_usd : m.precio;
-      items.push(`<li>${esc(nom)} — ${esc(fmtUsdFicha(prec))}</li>`);
-    });
-  });
-  return items.length ? `<ul class="cc-modulos">${items.join('')}</ul>` : '';
-}
-
 function textoCuentaCorriente(cliente, cc){
   const m = typeof marcaCMR === 'function' ? marcaCMR() : { empresa:'CMR Software Solutions', telefono:'3364 57-8599' };
   const hoy = new Date().toLocaleDateString('es-AR');
@@ -828,7 +814,6 @@ function buildHTMLCuentaCorriente(cliente, cc){
   table{width:100%;border-collapse:collapse;margin:8px 0 16px;font-size:13px}
   th,td{padding:8px;border-bottom:1px solid #e2e8f0;text-align:left;vertical-align:top}
   th{font-size:11px;text-transform:uppercase;color:#64748b}
-  .cc-modulos{margin:8px 0 0;padding-left:18px;font-size:13px;color:#475569}
   .nota{margin-top:18px;font-size:11px;color:#64748b}
   @media print{body{background:#fff}.page{margin:0;border:none}}
 </style></head><body>
@@ -847,7 +832,6 @@ function buildHTMLCuentaCorriente(cliente, cc){
     <table><thead><tr><th>Fecha</th><th>Descripción</th><th>Tipo</th><th style="text-align:right">Monto</th><th style="text-align:right">Cotiz.</th><th style="text-align:right">USD</th></tr></thead><tbody>${filasPagos}</tbody></table>
     <h2>Documentos vinculados</h2>
     <table><thead><tr><th>N°</th><th>Tipo</th><th>Estado</th><th>Cliente</th></tr></thead><tbody>${filasDocs}</tbody></table>
-    ${lineasModulosHtml(cc.docs)}
     <p class="nota">Estado de cuenta interno de ${esc(m.empresa)}. No válido como factura fiscal.</p>
   </div>
 </div>
