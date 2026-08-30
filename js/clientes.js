@@ -360,6 +360,7 @@ function buscarClientesDebounce(){
 let fichaClienteId = null;
 let fichaClienteActual = null;
 let fichaPagosById = {};
+let fichaCuentaCorriente = null;
 
 function onFilaClienteClick(ev, id){
   if(ev.target.closest('button')) return;
@@ -426,6 +427,7 @@ async function abrirFichaCliente(id){
   fichaClienteId = id;
   fichaClienteActual = null;
   fichaPagosById = {};
+  fichaCuentaCorriente = null;
   const modal = document.getElementById('modal-ficha-cliente');
   const body = document.getElementById('ficha-body');
   modal.classList.add('open');
@@ -565,6 +567,12 @@ async function abrirFichaCliente(id){
   }
 
   const pendienteUsd = presupuestado ? Math.max(presupuestado - cobradoUsd, 0) : 0;
+  fichaCuentaCorriente = {
+    ingresos, docs, presupuestado, cobrado, cobradoUsd, pendienteUsd, porTipo, pagosSinCotizacion
+  };
+
+  const telCc = typeof telefonoWhatsApp === 'function' && telefonoWhatsApp(c.contacto);
+  const mailCc = !!emailDeContactoCliente(c.contacto);
   const htmlUsdCards = presupuestado ? `
         <div class="ficha-cc-card"><div class="ficha-cc-label">Cobrado (USD aprox.)</div><div class="ficha-cc-val val-green">${fmtUsdFicha(cobradoUsd)}</div></div>
         <div class="ficha-cc-card"><div class="ficha-cc-label">Pendiente (USD aprox.)</div><div class="ficha-cc-val">${fmtUsdFicha(pendienteUsd)}</div></div>` : '';
@@ -574,7 +582,14 @@ async function abrirFichaCliente(id){
 
   body.innerHTML = `
     <section class="ficha-sec">
-      <h3>Cuenta corriente</h3>
+      <div class="ficha-sec-head">
+        <h3>Cuenta corriente</h3>
+        <div class="ficha-share-actions">
+          <button type="button" class="ficha-link" onclick="verCuentaCorriente()" title="Ver e imprimir">Ver / PDF</button>
+          <button type="button" class="btn-wsp btn-recibo" ${telCc ? '' : 'disabled title="Sin teléfono en Contacto"'} onclick="compartirCuentaCorrienteWhatsApp()">WhatsApp</button>
+          ${mailCc ? `<button type="button" class="btn-email-info btn-recibo" onclick="compartirCuentaCorrienteEmail()">Email</button>` : ''}
+        </div>
+      </div>
       <div class="ficha-cc">
         <div class="ficha-cc-card"><div class="ficha-cc-label">Total presupuestado</div><div class="ficha-cc-val">${presupuestado ? fmtUsdFicha(presupuestado) : '—'}</div></div>
         <div class="ficha-cc-card"><div class="ficha-cc-label">Total cobrado</div><div class="ficha-cc-val val-green">${fmt(cobrado)}</div></div>
@@ -603,6 +618,7 @@ function cerrarFichaCliente(){
   fichaClienteId = null;
   fichaClienteActual = null;
   fichaPagosById = {};
+  fichaCuentaCorriente = null;
 }
 
 function fichaAbrirEditar(){
@@ -713,6 +729,162 @@ function buildHTMLRecibo(cliente, mov){
   </div>
 </div>
 </body></html>`;
+}
+
+function datosCuentaCorriente(){
+  const cliente = fichaClienteActual;
+  const cc = fichaCuentaCorriente;
+  if(!cliente || !cc){ toast('Abrí la ficha del cliente primero'); return null; }
+  return { cliente, cc };
+}
+
+function lineasModulosHtml(docs){
+  const items = [];
+  (docs || []).filter(d => d.tipo === 'presupuesto').forEach(d => {
+    const c = d.contenido || {};
+    const mods = Array.isArray(c.modulos) && c.modulos.length ? c.modulos : (c.items || []);
+    mods.forEach(m => {
+      const nom = m.nombre || 'Módulo';
+      const prec = m.precio_usd != null ? m.precio_usd : m.precio;
+      items.push(`<li>${esc(nom)} — ${esc(fmtUsdFicha(prec))}</li>`);
+    });
+  });
+  return items.length ? `<ul class="cc-modulos">${items.join('')}</ul>` : '';
+}
+
+function textoCuentaCorriente(cliente, cc){
+  const m = typeof marcaCMR === 'function' ? marcaCMR() : { empresa:'CMR Software Solutions', telefono:'3364 57-8599' };
+  const hoy = new Date().toLocaleDateString('es-AR');
+  let txt = `Hola ${cliente.nombre}, te compartimos el estado de cuenta de ${m.empresa} (${hoy}):\n\n`;
+  if(cc.presupuestado){
+    txt += `Presupuestado: ${fmtUsdFicha(cc.presupuestado)}\n`;
+    txt += `Cobrado (USD aprox.): ${fmtUsdFicha(cc.cobradoUsd)}\n`;
+    txt += `Pendiente (USD aprox.): ${fmtUsdFicha(cc.pendienteUsd)}\n`;
+  }
+  txt += `Total cobrado: ${fmt(cc.cobrado)}\n\n`;
+  if(cc.ingresos.length){
+    txt += `Pagos registrados:\n`;
+    cc.ingresos.forEach(p => {
+      const cot = Number(p.cotizacion_usd) || 0;
+      const usd = cot ? ` (${fmtUsdFicha((Number(p.monto)||0)/cot)})` : '';
+      txt += `• ${fmtFechaRecibo(p.fecha)} — ${labelTipoPagoRecibo(p.tipo_pago)} — ${fmt(p.monto)}${usd}\n  ${p.descripcion}\n`;
+    });
+  } else {
+    txt += `Sin pagos registrados aún.\n`;
+  }
+  txt += `\nWhatsApp CMR: ${m.telefono}`;
+  return txt;
+}
+
+function buildHTMLCuentaCorriente(cliente, cc){
+  const m = typeof marcaCMR === 'function' ? marcaCMR() : {
+    empresa:'CMR Software Solutions', telefono:'3364 57-8599',
+    email:'contacto@cmrsoftwaresolutions.com',
+    ubicacion:'San Nicolás de los Arroyos, Buenos Aires, Argentina',
+    color:'#0a9d8f', colorOscuro:'#0d1b2e', logoText:'CM', logoUrl:''
+  };
+  const hoy = new Date().toLocaleDateString('es-AR');
+  const est = labelEstadoFicha(cliente);
+  const logo = m.logoUrl
+    ? `<img src="${esc(m.logoUrl)}" alt="${esc(m.empresa)}" style="height:42px">`
+    : `<div class="logo">${esc(m.logoText || 'CM')}</div>`;
+
+  const filasPagos = (cc.ingresos || []).map(p => {
+    const cot = Number(p.cotizacion_usd) || 0;
+    return `<tr>
+      <td>${esc(fmtFechaRecibo(p.fecha))}</td>
+      <td>${esc(p.descripcion)}</td>
+      <td>${esc(labelTipoPagoRecibo(p.tipo_pago))}</td>
+      <td style="text-align:right;font-weight:600">${fmt(p.monto)}</td>
+      <td style="text-align:right">${cot ? cot.toLocaleString('es-AR') : '—'}</td>
+      <td style="text-align:right">${cot ? fmtUsdFicha((Number(p.monto)||0)/cot) : '—'}</td>
+    </tr>`;
+  }).join('') || `<tr><td colspan="6" style="text-align:center;color:#64748b">Sin pagos registrados</td></tr>`;
+
+  const filasDocs = (cc.docs || []).map(d =>
+    `<tr><td>${esc(d.numero)}</td><td>${esc(d.tipo)}</td><td>${esc(d.estado||'')}</td><td>${esc(d.cliente)}</td></tr>`
+  ).join('') || `<tr><td colspan="4" style="text-align:center;color:#64748b">Sin documentos vinculados</td></tr>`;
+
+  const cardsUsd = cc.presupuestado ? `
+    <div class="stat"><span>Presupuestado</span><strong>${esc(fmtUsdFicha(cc.presupuestado))}</strong></div>
+    <div class="stat"><span>Cobrado USD aprox.</span><strong>${esc(fmtUsdFicha(cc.cobradoUsd))}</strong></div>
+    <div class="stat"><span>Pendiente USD aprox.</span><strong>${esc(fmtUsdFicha(cc.pendienteUsd))}</strong></div>` : '';
+
+  return `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Cuenta corriente — ${esc(cliente.nombre)}</title>
+<style>
+  *{box-sizing:border-box} body{margin:0;font-family:'Segoe UI',system-ui,sans-serif;color:${m.colorOscuro};background:#f0f4f8}
+  .page{max-width:820px;margin:24px auto;background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden}
+  .banner{background:${m.colorOscuro};color:#fff;padding:22px 28px;display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
+  .logo{width:42px;height:42px;border-radius:10px;background:${m.color};display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex-shrink:0}
+  .banner h1{margin:0;font-size:20px}
+  .banner p{margin:4px 0 0;font-size:12px;opacity:.85}
+  .badge{display:inline-block;margin-top:8px;padding:4px 10px;border-radius:999px;background:rgba(255,255,255,.15);font-size:11px;font-weight:600}
+  .pad{padding:28px}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:18px}
+  .stat{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px}
+  .stat span{display:block;font-size:11px;color:#64748b;margin-bottom:4px}
+  .stat strong{font-size:17px;color:${m.color}}
+  h2{font-size:14px;color:${m.color};margin:22px 0 8px;border-bottom:2px solid #e2e8f0;padding-bottom:4px}
+  table{width:100%;border-collapse:collapse;margin:8px 0 16px;font-size:13px}
+  th,td{padding:8px;border-bottom:1px solid #e2e8f0;text-align:left;vertical-align:top}
+  th{font-size:11px;text-transform:uppercase;color:#64748b}
+  .cc-modulos{margin:8px 0 0;padding-left:18px;font-size:13px;color:#475569}
+  .nota{margin-top:18px;font-size:11px;color:#64748b}
+  @media print{body{background:#fff}.page{margin:0;border:none}}
+</style></head><body>
+<div class="page">
+  <div class="banner">
+    <div style="display:flex;gap:12px;align-items:flex-start">${logo}<div><strong>${esc(m.empresa)}</strong><p>${esc(m.telefono)} · ${esc(m.email)}</p></div></div>
+    <div style="text-align:right"><h1>Cuenta corriente</h1><p>${esc(cliente.nombre)}</p><p>${esc(hoy)}</p><span class="badge">${esc(est.label)}</span></div>
+  </div>
+  <div class="pad">
+    <div class="stats">
+      ${cardsUsd}
+      <div class="stat"><span>Total cobrado (ARS)</span><strong>${esc(fmt(cc.cobrado))}</strong></div>
+    </div>
+    <p class="nota">${cc.pagosSinCotizacion ? esc(`${cc.pagosSinCotizacion} pago(s) sin cotización — el USD es aproximado.`) : 'Equivalentes en USD según cotización cargada en cada pago.'}</p>
+    <h2>Historial de pagos</h2>
+    <table><thead><tr><th>Fecha</th><th>Descripción</th><th>Tipo</th><th style="text-align:right">Monto</th><th style="text-align:right">Cotiz.</th><th style="text-align:right">USD</th></tr></thead><tbody>${filasPagos}</tbody></table>
+    <h2>Documentos vinculados</h2>
+    <table><thead><tr><th>N°</th><th>Tipo</th><th>Estado</th><th>Cliente</th></tr></thead><tbody>${filasDocs}</tbody></table>
+    ${lineasModulosHtml(cc.docs)}
+    <p class="nota">Estado de cuenta interno de ${esc(m.empresa)}. No válido como factura fiscal.</p>
+  </div>
+</div>
+</body></html>`;
+}
+
+function verCuentaCorriente(){
+  const d = datosCuentaCorriente();
+  if(!d) return;
+  const html = buildHTMLCuentaCorriente(d.cliente, d.cc);
+  const nombre = `CuentaCorriente_${(d.cliente.nombre || 'cliente').replace(/\s+/g,'_')}.html`;
+  if(typeof abrirHtmlVista === 'function') abrirHtmlVista(`Cuenta corriente — ${d.cliente.nombre}`, html, nombre);
+  else {
+    const w = window.open('', '_blank');
+    if(w){ w.document.write(html); w.document.close(); }
+    else toast('Permití popups para ver la cuenta corriente');
+  }
+}
+
+function compartirCuentaCorrienteWhatsApp(){
+  const d = datosCuentaCorriente();
+  if(!d) return;
+  const tel = typeof telefonoWhatsApp === 'function' ? telefonoWhatsApp(d.cliente.contacto) : null;
+  if(!tel){ toast('El cliente no tiene teléfono válido en Contacto'); return; }
+  const msg = textoCuentaCorriente(d.cliente, d.cc);
+  if(typeof abrirWhatsAppNumero === 'function') abrirWhatsAppNumero(tel, msg);
+  else window.open('https://wa.me/' + tel + '?text=' + encodeURIComponent(msg), '_blank');
+}
+
+function compartirCuentaCorrienteEmail(){
+  const d = datosCuentaCorriente();
+  if(!d) return;
+  const email = emailDeContactoCliente(d.cliente.contacto);
+  if(!email){ toast('El cliente no tiene email en Contacto'); return; }
+  const subject = encodeURIComponent(`Cuenta corriente — ${d.cliente.nombre}`);
+  const body = encodeURIComponent(textoCuentaCorriente(d.cliente, d.cc));
+  window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
 }
 
 function verReciboPago(movId){

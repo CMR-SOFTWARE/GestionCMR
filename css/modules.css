@@ -338,6 +338,9 @@ tbody tr:hover td{background:var(--surface2)}
 .ficha-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:1rem}
 .ficha-meta{font-size:12px;color:var(--text3)}
 .ficha-sec{margin-bottom:1.1rem}
+.ficha-sec-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;flex-wrap:wrap}
+.ficha-sec-head h3{margin:0}
+.ficha-share-actions{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
 .ficha-sec h3{font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text3);margin:0 0 8px}
 .ficha-cc{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px}
 .ficha-cc-card{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px}
