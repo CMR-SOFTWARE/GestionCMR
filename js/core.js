@@ -114,7 +114,7 @@ function mostrarApp(){
   av.textContent = u.nombre.charAt(0).toUpperCase();
   av.style.background = u.color;
   document.getElementById('user-name').textContent = u.nombre;
-  verificarSupabase().then(ok => { if(ok){ poblarMeses(); cargarDatos(); cargarClientes(); cargarPresupuestosParaMov(); initTareaForm(); initInformacionApp(); cargarResumenDiario(); } });
+  verificarSupabase().then(ok => { if(ok){ poblarMeses(); cargarDatos(); cargarClientes(); cargarPresupuestosParaMov(); initTareaForm(); initInformacionApp(); cargarResumenDiario(); initMovForm(); } });
   setDefaultFechaVence();
 }
 

@@ -134,6 +134,11 @@ async function cargarDatos(){
   actualizarTotales(data);
 }
 
+function initMovForm(){
+  const el = document.getElementById('mov-fecha');
+  if(el && !el.value) el.value = new Date().toISOString().slice(0, 10);
+}
+
 async function agregar(){
   if(!requiereSupabase()) return;
   const tipo  = document.getElementById('tipo').value;
@@ -141,16 +146,17 @@ async function agregar(){
   const cat   = document.getElementById('cat').value;
   const tipoPago = document.getElementById('tipo-pago')?.value || 'pago_total';
   const monto = parseFloat(document.getElementById('monto').value);
+  const fecha = document.getElementById('mov-fecha')?.value;
   const cotizacionUsd = parseFloat(document.getElementById('cotizacion-usd')?.value);
   const documento_id = leerDocumentoIdMov('');
   if(!desc)         { toast('Completá la descripción'); return; }
   if(!monto||monto<=0){ toast('Ingresá un monto válido'); return; }
+  if(!fecha)        { toast('Elegí la fecha'); return; }
 
   const btn = document.getElementById('btn-agregar');
   btn.disabled = true; btn.textContent = 'Guardando…';
 
-  const hoy = new Date().toISOString().slice(0,10);
-  const row = { fecha:hoy, tipo, descripcion:desc, categoria:cat, tipo_pago: tipoPago, monto, socio:sesion };
+  const row = { fecha, tipo, descripcion:desc, categoria:cat, tipo_pago: tipoPago, monto, socio:sesion };
   if(documento_id) row.documento_id = documento_id;
   if(cotizacionUsd > 0) row.cotizacion_usd = cotizacionUsd;
   const clienteId = await clienteIdParaMovimiento(desc, documento_id, leerClienteIdMov(''));
@@ -175,6 +181,7 @@ async function agregar(){
     const mc = document.getElementById('mov-cliente');
     if(mc) mc.value = '';
     toggleDocPresupuestoMov('');
+    initMovForm();
     toast('Movimiento guardado');
     await Promise.all([cargarDatos(), poblarMeses()]);
   }

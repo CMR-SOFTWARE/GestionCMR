@@ -506,18 +506,18 @@ async function abrirFichaCliente(id){
     : '<p class="ficha-empty">Sin documentos vinculados.</p>';
 
   const htmlPagos = ingresos.length
-    ? `<div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Descripción</th><th>Pago</th><th style="text-align:right">Monto</th><th style="text-align:right">Cotiz.</th><th style="text-align:right">USD</th><th></th></tr></thead><tbody>${
+    ? `<div class="table-wrap"><table><thead><tr><th class="ficha-col-fecha">Fecha</th><th>Descripción</th><th>Pago</th><th style="text-align:right">Monto</th><th class="ficha-col-cotiz" style="text-align:right">Cotiz.</th><th style="text-align:right">USD</th><th></th></tr></thead><tbody>${
       ingresos.map(m => {
         fichaPagosById[m.id] = m;
         const telOk = typeof telefonoWhatsApp === 'function' && telefonoWhatsApp(c.contacto);
         const mailOk = !!emailDeContactoCliente(c.contacto);
         const cot = Number(m.cotizacion_usd) || 0;
         return `<tr>
-        <td style="font-size:12px">${esc(m.fecha)}</td>
+        <td class="ficha-col-fecha" style="font-size:12px">${esc(m.fecha)}</td>
         <td>${esc(m.descripcion)}</td>
         <td>${typeof badgeTipoPago === 'function' ? badgeTipoPago(m.tipo_pago) : esc(m.tipo_pago || '')}</td>
         <td style="text-align:right;font-weight:600">${fmt(m.monto)}</td>
-        <td style="text-align:right;font-size:12px;color:var(--text2)">${cot ? cot.toLocaleString('es-AR') : '—'}</td>
+        <td class="ficha-col-cotiz" style="text-align:right;font-size:12px">${cot ? cot.toLocaleString('es-AR') : '—'}</td>
         <td style="text-align:right;font-size:12px;color:var(--text2)">${cot ? fmtUsdFicha((Number(m.monto)||0)/cot) : '—'}</td>
         <td>
           <div class="ficha-recibo-actions">
@@ -724,7 +724,7 @@ function buildHTMLRecibo(cliente, mov){
       <tbody><tr><td>${esc(mov.descripcion)}</td><td>${esc(labelTipoPagoRecibo(mov.tipo_pago))}</td><td style="text-align:right;font-weight:700">${fmt(mov.monto)}</td></tr></tbody>
     </table>
     <div class="total"><span>Total cobrado</span><span>${fmt(mov.monto)}</span></div>
-    ${eq ? `<p class="nota" style="margin-top:10px;font-size:13px;color:${m.colorOscuro}">Equivalente: <strong>${esc(fmtUsdFicha(eq.usd))}</strong> (cotización $ ${esc(eq.cot.toLocaleString('es-AR'))})</p>` : ''}
+    ${eq ? `<p class="nota" style="margin-top:10px;font-size:13px;color:#e53e3e">Equivalente: <strong>${esc(fmtUsdFicha(eq.usd))}</strong> (cotización $ ${esc(eq.cot.toLocaleString('es-AR'))})</p>` : ''}
     <p class="nota">Comprobante interno de cobro de ${esc(m.empresa)}. No válido como factura fiscal.</p>
   </div>
 </div>
@@ -778,11 +778,11 @@ function buildHTMLCuentaCorriente(cliente, cc){
   const filasPagos = (cc.ingresos || []).map(p => {
     const cot = Number(p.cotizacion_usd) || 0;
     return `<tr>
-      <td>${esc(fmtFechaRecibo(p.fecha))}</td>
+      <td style="color:#e53e3e;font-weight:600">${esc(fmtFechaRecibo(p.fecha))}</td>
       <td>${esc(p.descripcion)}</td>
       <td>${esc(labelTipoPagoRecibo(p.tipo_pago))}</td>
       <td style="text-align:right;font-weight:600">${fmt(p.monto)}</td>
-      <td style="text-align:right">${cot ? cot.toLocaleString('es-AR') : '—'}</td>
+      <td style="text-align:right;color:#e53e3e;font-weight:600">${cot ? cot.toLocaleString('es-AR') : '—'}</td>
       <td style="text-align:right">${cot ? fmtUsdFicha((Number(p.monto)||0)/cot) : '—'}</td>
     </tr>`;
   }).join('') || `<tr><td colspan="6" style="text-align:center;color:#64748b">Sin pagos registrados</td></tr>`;
@@ -829,7 +829,7 @@ function buildHTMLCuentaCorriente(cliente, cc){
     </div>
     <p class="nota">${cc.pagosSinCotizacion ? esc(`${cc.pagosSinCotizacion} pago(s) sin cotización — el USD es aproximado.`) : 'Equivalentes en USD según cotización cargada en cada pago.'}</p>
     <h2>Historial de pagos</h2>
-    <table><thead><tr><th>Fecha</th><th>Descripción</th><th>Tipo</th><th style="text-align:right">Monto</th><th style="text-align:right">Cotiz.</th><th style="text-align:right">USD</th></tr></thead><tbody>${filasPagos}</tbody></table>
+    <table><thead><tr><th style="color:#e53e3e">Fecha</th><th>Descripción</th><th>Tipo</th><th style="text-align:right">Monto</th><th style="text-align:right;color:#e53e3e">Cotiz.</th><th style="text-align:right">USD</th></tr></thead><tbody>${filasPagos}</tbody></table>
     <h2>Documentos vinculados</h2>
     <table><thead><tr><th>N°</th><th>Tipo</th><th>Estado</th><th>Cliente</th></tr></thead><tbody>${filasDocs}</tbody></table>
     <p class="nota">Estado de cuenta interno de ${esc(m.empresa)}. No válido como factura fiscal.</p>
