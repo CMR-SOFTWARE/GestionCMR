@@ -684,7 +684,6 @@ function buildHTMLRecibo(cliente, mov){
     color:'#0a9d8f', colorOscuro:'#0d1b2e', logoText:'CM', logoUrl:''
   };
   const nro = nroReciboPago(mov);
-  const socio = (typeof USUARIOS !== 'undefined' && USUARIOS[mov.socio]?.nombre) || mov.socio || '';
   const eq = equivalenteUsdRecibo(mov);
   const logo = m.logoUrl
     ? `<img src="${esc(m.logoUrl)}" alt="${esc(m.empresa)}" style="height:42px">`
@@ -717,7 +716,7 @@ function buildHTMLRecibo(cliente, mov){
   <div class="pad">
     <div class="grid">
       <div class="box"><h3>Recibido de</h3><p><strong>${esc(cliente.nombre)}</strong></p>${cliente.contacto?`<p>${esc(cliente.contacto)}</p>`:''}${cliente.plan?`<p>${esc(cliente.plan)}</p>`:''}</div>
-      <div class="box"><h3>Emitido por</h3><p><strong>${esc(m.empresa)}</strong></p><p>${esc(m.ubicacion)}</p>${socio?`<p>Registró: ${esc(socio)}</p>`:''}</div>
+      <div class="box"><h3>Emitido por</h3><p><strong>${esc(m.empresa)}</strong></p><p>${esc(m.ubicacion)}</p></div>
     </div>
     <table>
       <thead><tr><th>Concepto</th><th>Tipo</th><th style="text-align:right">Monto</th></tr></thead>
