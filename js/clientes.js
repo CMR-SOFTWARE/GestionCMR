@@ -603,7 +603,34 @@ async function abrirFichaCliente(id){
       ${htmlDocs}
     </section>
     <section class="ficha-sec">
-      <h3>Historial de pagos</h3>
+      <div class="ficha-sec-head">
+        <h3>Historial de pagos</h3>
+        <button type="button" class="ficha-link" onclick="toggleFormPagoFicha()">+ Registrar pago</button>
+      </div>
+      <div id="ficha-form-pago" style="display:none;margin-bottom:14px">
+        <div class="form-grid form-3">
+          <div class="field"><label>Monto ($)</label><input id="fp-monto" type="number" min="0" step="0.01" value="${c.monto_plan || ''}"></div>
+          <div class="field"><label>Tipo de pago</label>
+            <select id="fp-tipo-pago">
+              <option value="mensual" ${mantenimientoActivo(c) ? 'selected' : ''}>Mensual</option>
+              <option value="pago_total" ${!mantenimientoActivo(c) ? 'selected' : ''}>Pago total</option>
+              <option value="seña">Seña</option>
+              <option value="pago_parcial">Pago parcial</option>
+              <option value="otro">Otro</option>
+            </select>
+          </div>
+          <div class="field"><label>Fecha</label><input id="fp-fecha" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+        </div>
+        <div class="form-grid form-2" style="margin-top:8px">
+          <div class="field"><label>Descripción</label><input id="fp-desc" type="text" placeholder="Se completa automáticamente si la dejás vacía"></div>
+          <div class="field"><label>Cotización USD (opcional)</label><input id="fp-cotizacion" type="number" min="0" step="0.01" placeholder="Ej: 1250"></div>
+        </div>
+        <p class="info-hint" style="margin:6px 0 0">Registra el pago sin tocar la fecha de vencimiento del cliente — útil para pagos adelantados.</p>
+        <div style="margin-top:10px;display:flex;gap:8px;justify-content:flex-end">
+          <button type="button" onclick="toggleFormPagoFicha()">Cancelar</button>
+          <button type="button" class="btn-success" id="btn-guardar-pago-ficha" onclick="guardarPagoFicha()">Guardar pago</button>
+        </div>
+      </div>
       ${htmlPagos}
     </section>
     <section class="ficha-sec">
@@ -611,6 +638,51 @@ async function abrirFichaCliente(id){
       ${htmlProy}
     </section>
   `;
+}
+
+function toggleFormPagoFicha(){
+  const el = document.getElementById('ficha-form-pago');
+  if(!el) return;
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+async function guardarPagoFicha(){
+  const c = fichaClienteActual;
+  if(!c || !requiereSupabase()) return;
+  const monto = parseFloat(document.getElementById('fp-monto')?.value);
+  const tipoPago = document.getElementById('fp-tipo-pago')?.value || 'mensual';
+  const fecha = document.getElementById('fp-fecha')?.value || new Date().toISOString().slice(0, 10);
+  const cotizacionUsd = parseFloat(document.getElementById('fp-cotizacion')?.value);
+  const descManual = (document.getElementById('fp-desc')?.value || '').trim();
+  if(!monto || monto <= 0){ toast('Ingresá un monto válido'); return; }
+  if(!fecha){ toast('Elegí la fecha'); return; }
+
+  const desc = descManual || (tipoPago === 'mensual'
+    ? `Renovación — ${c.nombre} (${c.plan})`
+    : `Pago — ${c.nombre} (${c.plan})`);
+  const catMov = tipoPago === 'mensual' ? 'Mantenimiento' : 'Proyecto';
+
+  const btn = document.getElementById('btn-guardar-pago-ficha');
+  if(btn){ btn.disabled = true; btn.textContent = 'Guardando…'; }
+
+  const row = { fecha, tipo: 'ingreso', descripcion: desc, categoria: catMov, tipo_pago: tipoPago, monto, socio: sesion, cliente_id: c.id };
+  if(cotizacionUsd > 0) row.cotizacion_usd = cotizacionUsd;
+
+  let { error } = await sb.from('movimientos').insert(row);
+  if(error && esColumnaFaltante(error, 'cliente_id')){
+    delete row.cliente_id;
+    ({ error } = await sb.from('movimientos').insert(row));
+  }
+  if(error && esColumnaFaltante(error, 'cotizacion_usd')){
+    delete row.cotizacion_usd;
+    ({ error } = await sb.from('movimientos').insert(row));
+  }
+
+  if(btn){ btn.disabled = false; btn.textContent = 'Guardar pago'; }
+  if(error){ toast(supabaseErrMsg(error)); return; }
+
+  toast('Pago registrado — no se modificó la fecha de vencimiento');
+  await abrirFichaCliente(fichaClienteId);
 }
 
 function cerrarFichaCliente(){
