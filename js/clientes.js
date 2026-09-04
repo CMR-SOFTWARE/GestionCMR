@@ -625,7 +625,7 @@ async function abrirFichaCliente(id){
           <div class="field"><label>Descripción</label><input id="fp-desc" type="text" placeholder="Se completa automáticamente si la dejás vacía"></div>
           <div class="field"><label>Cotización USD (opcional)</label><input id="fp-cotizacion" type="number" min="0" step="0.01" placeholder="Ej: 1250"></div>
         </div>
-        <p class="info-hint" style="margin:6px 0 0">Registra el pago sin tocar la fecha de vencimiento del cliente — útil para pagos adelantados.</p>
+        <p class="info-hint" style="margin:6px 0 0">Si el pago es "Mensual" (u otra periodicidad recurrente), el vencimiento avanza un período desde la fecha actual de vencimiento — no desde la fecha del pago. Los demás tipos de pago no tocan el vencimiento.</p>
         <div style="margin-top:10px;display:flex;gap:8px;justify-content:flex-end">
           <button type="button" onclick="toggleFormPagoFicha()">Cancelar</button>
           <button type="button" class="btn-success" id="btn-guardar-pago-ficha" onclick="guardarPagoFicha()">Guardar pago</button>
@@ -678,10 +678,25 @@ async function guardarPagoFicha(){
     ({ error } = await sb.from('movimientos').insert(row));
   }
 
-  if(btn){ btn.disabled = false; btn.textContent = 'Guardar pago'; }
-  if(error){ toast(supabaseErrMsg(error)); return; }
+  if(error){
+    if(btn){ btn.disabled = false; btn.textContent = 'Guardar pago'; }
+    toast(supabaseErrMsg(error));
+    return;
+  }
 
-  toast('Pago registrado — no se modificó la fecha de vencimiento');
+  let mensajeVenc = '';
+  const esRenovacion = tipoPago === 'mensual' && mantenimientoActivo(c) && !esPeriodicoUnico(c);
+  if(esRenovacion){
+    const nuevaFecha = sumarPeriodo(c.fecha_vencimiento, c.periodicidad || 'mensual');
+    const { error: eCl } = await sb.from('clientes').update({
+      fecha_vencimiento: nuevaFecha, pago_confirmado: true, activo: true, updated_at: new Date().toISOString()
+    }).eq('id', c.id);
+    if(eCl) toast(supabaseErrMsg(eCl));
+    else mensajeVenc = ` — próximo vencimiento ${nuevaFecha}`;
+  }
+
+  if(btn){ btn.disabled = false; btn.textContent = 'Guardar pago'; }
+  toast('Pago registrado' + mensajeVenc);
   await abrirFichaCliente(fichaClienteId);
 }
 
